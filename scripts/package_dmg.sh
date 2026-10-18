@@ -102,7 +102,9 @@ hdiutil attach "${TMP}" -nobrowse -mountpoint "${MNT}" >/dev/null
 SetFile -a C "${MNT}" 2>/dev/null || true
 
 echo "==> arranging Finder window"
-if ! osascript <<APPLESCRIPT
+if [ "${SKIP_DMG_LAYOUT:-0}" = "1" ]; then
+  echo "    skipped (SKIP_DMG_LAYOUT=1)"
+elif ! osascript <<APPLESCRIPT
 tell application "Finder"
   tell disk "${VOLNAME}"
     open

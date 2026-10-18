@@ -31,6 +31,8 @@ jobs:
           echo "$RUNNER_TEMP/dmg-venv/bin" >> "$GITHUB_PATH"
 
       - name: Build universal DMG
+        env:
+          SKIP_DMG_LAYOUT: "1"
         run: ./scripts/package_dmg.sh
 
       - name: Create universal app zip
