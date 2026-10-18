@@ -70,6 +70,9 @@ pub struct Spot {
     pub stack_chips: f64,
     pub oop: String,
     pub ip: String,
+    pub oop_position: String,
+    pub ip_position: String,
+    pub preflop: PreflopLine,
     pub bet_sizes: Vec<f64>,
     pub hero: Option<String>,
     pub hero_cards: Vec<u8>,
@@ -82,6 +85,153 @@ pub struct Spot {
     pub notes: Vec<String>,
     /// Real limitations of the derived spot.
     pub warnings: Vec<String>,
+}
+
+/// The kind of pot created by the preflop action.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PotType {
+    #[default]
+    Limped,
+    SingleRaised,
+    ThreeBet,
+    FourBetPlus,
+}
+
+impl PotType {
+    pub fn short(self) -> &'static str {
+        match self {
+            PotType::Limped => "Limped",
+            PotType::SingleRaised => "SRP",
+            PotType::ThreeBet => "3BP",
+            PotType::FourBetPlus => "4BP+",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            PotType::Limped => "limped pot",
+            PotType::SingleRaised => "single-raised pot",
+            PotType::ThreeBet => "3-bet pot",
+            PotType::FourBetPlus => "4-bet+ pot",
+        }
+    }
+}
+
+/// A player as seen at preflop, with the position derived from the button.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PreflopPlayer {
+    pub name: String,
+    pub position: String,
+}
+
+impl PreflopPlayer {
+    pub fn label(&self) -> String {
+        if self.position.is_empty() {
+            self.name.clone()
+        } else {
+            format!("{} ({})", self.position, self.name)
+        }
+    }
+}
+
+/// Everything the import can know about the preflop action.
+///
+/// `opener` is the original raiser (first raise). `last_aggressor` is the last
+/// player to raise preflop: in a 3-bet pot it is the 3-bettor, not the opener.
+#[derive(Clone, Debug, Default)]
+pub struct PreflopLine {
+    pub opener: Option<PreflopPlayer>,
+    pub last_aggressor: Option<PreflopPlayer>,
+    pub open_to: Option<f64>,
+    pub open_to_bb: Option<f64>,
+    pub callers: Vec<PreflopPlayer>,
+    pub pot_type: PotType,
+    pub raises: usize,
+}
+
+impl PreflopLine {
+    pub fn summary(&self) -> String {
+        match self.pot_type {
+            PotType::Limped => {
+                if self.callers.is_empty() {
+                    "limped pot, no preflop raise".into()
+                } else {
+                    format!(
+                        "limped pot, {} caller{}",
+                        self.callers.len(),
+                        if self.callers.len() == 1 { "" } else { "s" }
+                    )
+                }
+            }
+            PotType::SingleRaised => {
+                let opener = self
+                    .opener
+                    .as_ref()
+                    .map(|p| p.position.as_str())
+                    .unwrap_or("?");
+                let size = self
+                    .open_to_bb
+                    .map(|x| format!("{x:.2} bb"))
+                    .unwrap_or_else(|| "?".into());
+                let callers = if self.callers.is_empty() {
+                    String::new()
+                } else {
+                    format!(
+                        ", {} call{}",
+                        self.callers
+                            .iter()
+                            .map(|p| p.position.as_str())
+                            .collect::<Vec<_>>()
+                            .join("/"),
+                        if self.callers.len() == 1 { "" } else { "s" }
+                    )
+                };
+                format!("{opener} opens {size}{callers} -> SRP")
+            }
+            PotType::ThreeBet => {
+                let opener = self
+                    .opener
+                    .as_ref()
+                    .map(|p| p.position.as_str())
+                    .unwrap_or("?");
+                let agg = self
+                    .last_aggressor
+                    .as_ref()
+                    .map(|p| p.position.as_str())
+                    .unwrap_or("?");
+                let size = self
+                    .open_to_bb
+                    .map(|x| format!("{x:.2} bb"))
+                    .unwrap_or_else(|| "?".into());
+                format!("{opener} opens {size}, {agg} 3-bets -> 3BP")
+            }
+            PotType::FourBetPlus => {
+                let opener = self
+                    .opener
+                    .as_ref()
+                    .map(|p| p.position.as_str())
+                    .unwrap_or("?");
+                let agg = self
+                    .last_aggressor
+                    .as_ref()
+                    .map(|p| p.position.as_str())
+                    .unwrap_or("?");
+                format!("{opener} opens, {agg} 4-bets+ -> 4BP+")
+            }
+        }
+    }
+
+    /// Distinguishes the original raiser from the last preflop aggressor.
+    pub fn roles(&self) -> String {
+        match (&self.opener, &self.last_aggressor) {
+            (Some(o), Some(a)) if o.name != a.name => {
+                format!("opener {} / preflop aggressor {}", o.label(), a.label())
+            }
+            (Some(o), _) => format!("preflop raiser {}", o.label()),
+            (None, Some(a)) => format!("preflop aggressor {}", a.label()),
+            (None, None) => "no preflop raise".into(),
+        }
+    }
 }
 
 /// Extracts a number from a fragment such as `€0.02` or `$1,25`.
@@ -366,9 +516,131 @@ pub fn parse(text: &str) -> Result<Hand, String> {
 }
 
 impl Hand {
+    /// Circular order of occupied seats starting at the button.
+    ///
+    /// 0 = button, 1 = small blind, 2 = big blind, ... This handles tables with
+    /// empty seats correctly: only occupied seat numbers are wrapped.
+    fn seat_order(&self, seat: u32) -> Option<usize> {
+        let mut numbers: Vec<u32> = self.seats.iter().map(|s| s.number).collect();
+        numbers.sort_unstable();
+        numbers.dedup();
+        let n = numbers.len();
+        if n == 0 {
+            return None;
+        }
+        let pos = numbers.iter().position(|x| *x == seat)?;
+        let btn = numbers.iter().position(|x| *x == self.button)?;
+        Some((pos + n - btn) % n)
+    }
+
     fn order_key(&self, seat: u32) -> i64 {
+        // Postflop action order: the seat after the button acts first, the
+        // button acts last. `seat_order` is 0 at the button.
         let n = self.seats.len().max(2) as i64;
-        (seat as i64 - self.button as i64 - 1).rem_euclid(n)
+        self.seat_order(seat)
+            .map(|x| ((x as i64 + n - 1) % n) as i64)
+            .unwrap_or(i64::MAX)
+    }
+
+    /// Standard position label for a seat. Labels are approximate for unusual
+    /// table sizes; 2-9 handed use the usual names.
+    fn position_label(&self, seat: u32) -> String {
+        let order = match self.seat_order(seat) {
+            Some(o) => o,
+            None => return format!("Seat {seat}"),
+        };
+        let names: &[&str] = match self.seats.len() {
+            2 => &["BTN", "BB"],
+            3 => &["BTN", "SB", "BB"],
+            4 => &["BTN", "SB", "BB", "CO"],
+            5 => &["BTN", "SB", "BB", "UTG", "CO"],
+            6 => &["BTN", "SB", "BB", "UTG", "HJ", "CO"],
+            7 => &["BTN", "SB", "BB", "UTG", "MP", "HJ", "CO"],
+            8 => &["BTN", "SB", "BB", "UTG", "UTG+1", "MP", "HJ", "CO"],
+            9 => &["BTN", "SB", "BB", "UTG", "UTG+1", "MP", "MP+1", "HJ", "CO"],
+            10 => &["BTN", "SB", "BB", "UTG", "UTG+1", "UTG+2", "MP", "MP+1", "HJ", "CO"],
+            _ => &[],
+        };
+        names
+            .get(order)
+            .map(|s| (*s).to_string())
+            .unwrap_or_else(|| format!("Seat {seat}"))
+    }
+
+    fn preflop_player(&self, name: &str) -> PreflopPlayer {
+        let position = self
+            .seats
+            .iter()
+            .find(|s| s.name == name)
+            .map(|s| self.position_label(s.number))
+            .unwrap_or_default();
+        PreflopPlayer {
+            name: name.to_string(),
+            position,
+        }
+    }
+
+    /// Classifies the preflop action: original raiser, last aggressor, open
+    /// size, callers and pot type.
+    pub fn preflop_line(&self) -> PreflopLine {
+        let st = match self.streets.first() {
+            Some(s) => s,
+            None => return PreflopLine::default(),
+        };
+
+        let raises: Vec<&Action> = st
+            .actions
+            .iter()
+            .filter(|a| a.kind == ActionKind::Raise)
+            .collect();
+        let opener = raises.first().map(|a| self.preflop_player(&a.player));
+        let last_aggressor = raises.last().map(|a| self.preflop_player(&a.player));
+        let open_to = raises
+            .first()
+            .and_then(|a| a.to.or(Some(a.amount)))
+            .filter(|x| *x > 0.0);
+        let open_to_bb = open_to.map(|x| x / self.bb);
+
+        let folded_preflop: Vec<&str> = st
+            .actions
+            .iter()
+            .filter(|a| a.kind == ActionKind::Fold)
+            .map(|a| a.player.as_str())
+            .collect();
+        let mut callers: Vec<PreflopPlayer> = Vec::new();
+        for a in &st.actions {
+            if a.kind == ActionKind::Call
+                && !folded_preflop.contains(&a.player.as_str())
+                && !callers.iter().any(|c| c.name == a.player)
+            {
+                callers.push(self.preflop_player(&a.player));
+            }
+        }
+
+        callers.sort_by_key(|c| {
+            self.seats
+                .iter()
+                .find(|s| s.name == c.name)
+                .map(|s| self.order_key(s.number))
+                .unwrap_or(i64::MAX)
+        });
+
+        let pot_type = match raises.len() {
+            0 => PotType::Limped,
+            1 => PotType::SingleRaised,
+            2 => PotType::ThreeBet,
+            _ => PotType::FourBetPlus,
+        };
+
+        PreflopLine {
+            opener,
+            last_aggressor,
+            open_to,
+            open_to_bb,
+            callers,
+            pot_type,
+            raises: raises.len(),
+        }
     }
 
     /// Builds a heads-up postflop spot at the last street with voluntary action.
@@ -384,6 +656,8 @@ impl Hand {
             .collect();
         let mut folded: Vec<String> = Vec::new();
         let mut warnings: Vec<String> = Vec::new();
+        let mut notes: Vec<String> = Vec::new();
+        let preflop = self.preflop_line();
         let bb = self.bb;
 
         // Pot before each street, plus per-street action sizes.
@@ -529,6 +803,66 @@ impl Hand {
             p1.clone()
         };
         let ip = if oop == p0 { p1.clone() } else { p0.clone() };
+        let position_of = |name: &str| -> String {
+            active
+                .iter()
+                .find(|s| s.name == name)
+                .map(|s| self.position_label(s.number))
+                .unwrap_or_default()
+        };
+        let oop_position = position_of(&oop);
+        let ip_position = position_of(&ip);
+
+        if preflop.raises == 0 {
+            notes.push("limped pot: there is no preflop raiser; use limped/checking ranges".into());
+        } else if preflop.raises >= 2 {
+            if let (Some(o), Some(a)) = (&preflop.opener, &preflop.last_aggressor) {
+                if o.name != a.name {
+                    notes.push(format!(
+                        "{}: original raiser {} vs preflop aggressor {}",
+                        preflop.pot_type.short(),
+                        o.label(),
+                        a.label()
+                    ));
+                }
+            }
+        }
+        if let Some(o) = &preflop.opener {
+            if !active.iter().any(|s| s.name == o.name) {
+                warnings.push(format!(
+                    "preflop opener {} folded before the {}; the range of the remaining player is not an opener range",
+                    o.label(),
+                    street.name
+                ));
+            }
+        }
+        if let Some(a) = &preflop.last_aggressor {
+            let differs_from_opener = preflop
+                .opener
+                .as_ref()
+                .map(|o| o.name != a.name)
+                .unwrap_or(true);
+            if differs_from_opener && !active.iter().any(|s| s.name == a.name) {
+                warnings.push(format!(
+                    "preflop aggressor {} folded before the {}; no preflop aggressor is in the solved pair",
+                    a.label(),
+                    street.name
+                ));
+            }
+        }
+        if preflop.raises > 0 {
+            let actor_in_pair = |p: &Option<PreflopPlayer>| {
+                p.as_ref()
+                    .map(|p| p.name.as_str() == oop.as_str() || p.name.as_str() == ip.as_str())
+                    .unwrap_or(false)
+            };
+            if !actor_in_pair(&preflop.opener) && !actor_in_pair(&preflop.last_aggressor) {
+                notes.push(
+                    "the solved heads-up pair does not contain the preflop opener or aggressor: preflop roles refer to the full hand"
+                        .into(),
+                );
+            }
+        }
 
         // Effective stack behind at the analysed street.
         let stack_of = |name: &str| -> f64 {
@@ -556,7 +890,6 @@ impl Hand {
                 ));
             }
         }
-        let mut notes: Vec<String> = Vec::new();
         if let Some(small) = sizes.iter().find(|x| **x < 0.05) {
             notes.push(format!(
                 "observed bet is {:.0}% of the pot; add a second size (e.g. 0.75) for a useful tree",
@@ -595,6 +928,9 @@ impl Hand {
             stack_chips,
             oop,
             ip,
+            oop_position,
+            ip_position,
+            preflop,
             bet_sizes: sizes,
             hero: self.hero.clone(),
             hero_cards: self.hero_cards.clone(),
@@ -639,6 +975,15 @@ pub fn spot_summary(spot: &Spot) -> String {
         spot.stack_chips, spot.stack_bb
     ));
     s.push_str(&format!("players      OOP {} / IP {}\n", spot.oop, spot.ip));
+    s.push_str(&format!(
+        "positions    OOP {} / IP {}\n",
+        spot.oop_position, spot.ip_position
+    ));
+    s.push_str(&format!(
+        "preflop      {}\n",
+        spot.preflop.summary()
+    ));
+    s.push_str(&format!("roles        {}\n", spot.preflop.roles()));
     s.push_str(&format!(
         "rake         {:.2} on a {:.2} pot ({:.1}%)\n",
         spot.rake,
@@ -804,5 +1149,163 @@ Board [Qs 2d Th Td 6c]
     #[test]
     fn rejects_non_pokerstars_text() {
         assert!(parse("hello world").is_err());
+    }
+
+    #[test]
+    fn labels_positions_from_the_button() {
+        let h = parse(SAMPLE).unwrap();
+        assert_eq!(h.position_label(6), "BTN");
+        assert_eq!(h.position_label(1), "SB");
+        assert_eq!(h.position_label(2), "BB");
+        assert_eq!(h.position_label(3), "UTG");
+        assert_eq!(h.position_label(4), "HJ");
+        assert_eq!(h.position_label(5), "CO");
+    }
+
+    #[test]
+    fn classifies_limped_pot() {
+        let h = parse(SAMPLE).unwrap();
+        let line = h.preflop_line();
+        assert_eq!(line.pot_type, PotType::Limped);
+        assert_eq!(line.raises, 0);
+        assert!(line.opener.is_none());
+        assert!(line.last_aggressor.is_none());
+        let s = h.spot().unwrap();
+        assert_eq!(s.preflop.pot_type, PotType::Limped);
+        assert_eq!(s.oop_position, "BB");
+        assert_eq!(s.ip_position, "BTN");
+        assert!(s.notes.iter().any(|n| n.contains("limped pot")));
+    }
+
+    #[test]
+    fn classifies_srp_and_open_size() {
+        let text = r#"PokerStars Hand #262425592655:  Hold'em No Limit (€0.01/€0.02 EUR) - 2026/10/17 14:06:12 UTC
+Table 'Moreau' 6-max Seat #1 is the button
+Seat 1: Pekoz051 (€2 in chips)
+Seat 2: jurhas1 (€0.07 in chips)
+Seat 3: cobra.it57 (€1.52 in chips)
+Seat 4: Miluzzo2026 (€2.03 in chips)
+Seat 5: miseri90 (€0.99 in chips)
+Seat 6: Natural_Wisdom (€1.66 in chips)
+jurhas1: posts small blind €0.01
+cobra.it57: posts big blind €0.02
+*** HOLE CARDS ***
+Dealt to Pekoz051 [As Ac]
+Miluzzo2026: folds
+miseri90: calls €0.02
+Natural_Wisdom: calls €0.02
+Pekoz051: raises €0.08 to €0.10
+jurhas1: folds
+cobra.it57: calls €0.08
+miseri90: calls €0.08
+Natural_Wisdom: folds
+*** FLOP *** [Qs 2d Th]
+cobra.it57: bets €0.02
+miseri90: calls €0.02
+Pekoz051: raises €0.20 to €0.22
+cobra.it57: calls €0.20
+miseri90: calls €0.20
+*** SUMMARY ***
+Total pot €2.11 | Rake €0.12
+Board [Qs 2d Th]
+"#;
+        let h = parse(text).unwrap();
+        let line = h.preflop_line();
+        assert_eq!(line.pot_type, PotType::SingleRaised);
+        assert_eq!(line.raises, 1);
+        assert_eq!(line.opener.as_ref().unwrap().name, "Pekoz051");
+        assert_eq!(line.opener.as_ref().unwrap().position, "BTN");
+        assert_eq!(line.last_aggressor.as_ref().unwrap().name, "Pekoz051");
+        assert!((line.open_to.unwrap() - 0.10).abs() < 1e-9);
+        assert!((line.open_to_bb.unwrap() - 5.0).abs() < 1e-9);
+        assert_eq!(line.callers.len(), 2);
+        let s = h.spot().unwrap();
+        assert_eq!(s.oop_position, "BB");
+        assert_eq!(s.ip_position, "BTN");
+        assert_eq!(s.preflop.summary(), "BTN opens 5.00 bb, BB/HJ calls -> SRP");
+    }
+
+    #[test]
+    fn classifies_three_bet_and_keeps_opener_separate() {
+        let text = r#"PokerStars Hand #3:  Hold'em No Limit ($0.50/$1 USD) - 2026/10/18 10:00:00 UTC
+Table 'Test' 6-max Seat #1 is the button
+Seat 1: BTN ($100 in chips)
+Seat 2: SB ($100 in chips)
+Seat 3: BB ($100 in chips)
+Seat 4: UTG ($100 in chips)
+Seat 5: HJ ($100 in chips)
+Seat 6: CO ($100 in chips)
+SB: posts small blind $0.50
+BB: posts big blind $1
+*** HOLE CARDS ***
+UTG: folds
+HJ: folds
+CO: raises $1.50 to $2.50
+BTN: raises $5.50 to $8
+SB: folds
+BB: folds
+CO: calls $5.50
+*** FLOP *** [Ah Kd 7c]
+CO: checks
+BTN: bets $5
+CO: folds
+*** SUMMARY ***
+Total pot $17.50 | Rake $0
+Board [Ah Kd 7c]
+"#;
+        let h = parse(text).unwrap();
+        let line = h.preflop_line();
+        assert_eq!(line.pot_type, PotType::ThreeBet);
+        assert_eq!(line.raises, 2);
+        assert_eq!(line.opener.as_ref().unwrap().name, "CO");
+        assert_eq!(line.last_aggressor.as_ref().unwrap().name, "BTN");
+        let s = h.spot().unwrap();
+        assert_eq!(s.oop_position, "CO");
+        assert_eq!(s.ip_position, "BTN");
+        assert_eq!(s.preflop.summary(), "CO opens 2.50 bb, BTN 3-bets -> 3BP");
+        assert!(s
+            .notes
+            .iter()
+            .any(|n| n.contains("original raiser CO") && n.contains("preflop aggressor BTN")));
+    }
+
+    #[test]
+    fn warns_when_opener_folded_before_the_spot() {
+        let text = r#"PokerStars Hand #4:  Hold'em No Limit ($0.50/$1 USD) - 2026/10/18 10:00:00 UTC
+Table 'Test' 6-max Seat #1 is the button
+Seat 1: BTN ($100 in chips)
+Seat 2: SB ($100 in chips)
+Seat 3: BB ($100 in chips)
+Seat 4: UTG ($100 in chips)
+Seat 5: HJ ($100 in chips)
+Seat 6: CO ($100 in chips)
+SB: posts small blind $0.50
+BB: posts big blind $1
+*** HOLE CARDS ***
+UTG: folds
+HJ: folds
+CO: raises $1.50 to $2.50
+BTN: raises $5.50 to $8
+SB: calls $7.50
+BB: folds
+CO: folds
+*** FLOP *** [Ah Kd 7c]
+SB: checks
+BTN: bets $5
+SB: folds
+*** SUMMARY ***
+Total pot $17.50 | Rake $0
+Board [Ah Kd 7c]
+"#;
+        let h = parse(text).unwrap();
+        let s = h.spot().unwrap();
+        assert_eq!(s.preflop.pot_type, PotType::ThreeBet);
+        assert_eq!(s.oop_position, "SB");
+        assert_eq!(s.ip_position, "BTN");
+        assert!(s
+            .warnings
+            .iter()
+            .any(|w| w.contains("preflop opener CO") && w.contains("folded before the flop")));
+        assert!(crate::presets::suggest_ranges(&s).is_none());
     }
 }

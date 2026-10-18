@@ -72,6 +72,8 @@
   .sep{border:0;border-top:1px solid var(--line);margin:16px 0}
   .warnbox{font-size:11.5px;color:var(--warn);margin-top:8px;white-space:pre-wrap;line-height:1.4}
   .notebox{font-size:11.5px;color:var(--muted);margin-top:6px;white-space:pre-wrap;line-height:1.4}
+  .preflopbox{font-size:11.5px;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:8px 10px;margin-top:4px;line-height:1.5;white-space:pre-wrap}
+  .preflopbox b{color:var(--accent2);font-weight:600}
   tr.heroRow{background:rgba(76,195,138,.13)}
   .badge{display:inline-block;font-size:10px;padding:1px 6px;border-radius:99px;background:rgba(76,195,138,.16);color:var(--accent);border:1px solid rgba(76,195,138,.35);margin-left:6px}
 
@@ -197,6 +199,12 @@
     <div class="err" id="importErr"></div>
     <div class="notebox" id="importNote"></div>
     <div class="warnbox" id="importWarn"></div>
+    <label data-help="preflop">Preflop line</label>
+    <div class="preflopbox" id="preflopLine" style="display:none"></div>
+    <div class="actions" id="prefillRow" style="display:none;margin-top:8px">
+      <button id="prefill" class="ghost" style="flex:1">Use starter ranges</button>
+    </div>
+    <div class="hint" id="prefillHint"></div>
     <hr class="sep">
     <h2>Spot</h2>
     <label for="board" data-help="board">Board (flop / turn / river)</label>
@@ -383,6 +391,18 @@ const HELP = {
     short: "Paste a PokerStars hand history to fill board, pot, stack and sizes.",
     long: "Paste one PokerStars hand. OPS fills the board of the analysed street, pot and effective stack in big blinds, the players (OOP/IP), and the bet sizes used.",
     example: "Then review ranges: they are not derived from a single hand."
+  },
+  preflop: {
+    title: "Preflop line", tag: "workflow",
+    short: "Who opened, who 3-bet, and which kind of pot this is.",
+    long: "OPS classifies the preflop action: original raiser (first raise), last preflop aggressor (last raise), open size, callers and pot type (limped, SRP, 3BP, 4BP+). In a 3-bet pot the original raiser and the preflop aggressor are different players. This is metadata for choosing ranges; it does not change the solver.",
+    example: "CO opens 2.5 bb, BTN 3-bets -> 3BP; opener CO, aggressor BTN."
+  },
+  prefill: {
+    title: "Starter ranges", tag: "workflow",
+    short: "Heuristic ranges suggested after a hand import.",
+    long: "OPS can fill OOP and IP with a starter chart based on positions and pot type. It is a heuristic, not a solved GTO range: edit it before solving. The solver always uses exactly the ranges shown in the boxes.",
+    example: "BTN vs BB SRP: BTN gets an opening range, BB gets a defending range."
   },
   board: {
     title: "Board", tag: "cards",
@@ -699,6 +719,7 @@ function config(){
 }
 
 let heroCards = [];
+let suggestedRanges = null;
 
 /* ---------- deck picker ---------- */
 const RANK_ORDER = ["A","K","Q","J","T","9","8","7","6","5","4","3","2"];
@@ -1019,6 +1040,9 @@ function confirmRangePicker(){
 async function importHand(){
   clearInterval(poll); poll = null;
   $("importErr").textContent = ""; $("importWarn").textContent = ""; $("importNote").textContent = "";
+  $("preflopLine").textContent = ""; $("preflopLine").style.display = "none";
+  $("prefillRow").style.display = "none"; $("prefillHint").textContent = "";
+  suggestedRanges = null;
   $("import").disabled = true;
   try{
     const r = await fetch("/api/import", {
@@ -1039,7 +1063,19 @@ async function importHand(){
     if (j.rake_pct_observed > 0) $("rake").value = (j.rake_pct_observed*100).toFixed(1);
     $("importNote").textContent = (j.notes||[]).join("\n");
     $("importWarn").textContent = (j.warnings||[]).join("\n");
-    $("meta").textContent = `${j.street} · ${j.oop} (OOP) vs ${j.ip} (IP) · pot ${j.pot_bb.toFixed(2)} bb · stack ${j.stack_bb.toFixed(2)} bb`;
+    if (j.preflop) {
+      $("preflopLine").innerHTML = `<b>${escHtml(j.preflop.summary)}</b><br><span class="muted">${escHtml(j.preflop.roles)}</span>`;
+      $("preflopLine").style.display = "block";
+    }
+    if (j.suggested_ranges) {
+      suggestedRanges = j.suggested_ranges;
+      $("prefillRow").style.display = "flex";
+      const notes = (suggestedRanges.notes||[]).join(" ");
+      $("prefillHint").textContent = `${suggestedRanges.source}. ${notes}`;
+    }
+    const oopPos = j.oop_position ? ` (${j.oop_position})` : "";
+    const ipPos = j.ip_position ? ` (${j.ip_position})` : "";
+    $("meta").textContent = `${j.street} · ${j.oop}${oopPos} (OOP) vs ${j.ip}${ipPos} (IP) · pot ${j.pot_bb.toFixed(2)} bb · stack ${j.stack_bb.toFixed(2)} bb`;
   }catch(e){
     $("importErr").textContent = String(e.message||e);
   }finally{
@@ -1408,6 +1444,12 @@ async function selectNode(id){
 $("solve").onclick = startSolve;
 $("stop").onclick = stopSolve;
 $("import").onclick = importHand;
+$("prefill").onclick = ()=>{
+  if(!suggestedRanges) return;
+  $("oop").value = suggestedRanges.oop_range;
+  $("ip").value = suggestedRanges.ip_range;
+  $("prefillHint").textContent = "Starter ranges inserted. Edit them before solving.";
+};
 
 $("boardPick").onclick = openBoardPicker;
 $("deckOk").onclick = confirmBoardPicker;

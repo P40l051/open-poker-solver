@@ -1,0 +1,36 @@
+name: Release DMG
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  dmg:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust targets
+        run: |
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Build universal DMG
+        run: ./scripts/package_dmg.sh
+
+      - name: Create universal app zip
+        run: |
+          VERSION="$(awk -F'"' '/^version/{print $2; exit}' Cargo.toml)"
+          ditto -c -k --sequesterRsrc --keepParent dist/OPS.app "dist/OPS-${VERSION}-macos-universal.zip"
+
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/OPS-*-macos-universal.dmg
+            dist/OPS-*-macos-universal.dmg.sha256
+            dist/OPS-*-macos-universal.zip

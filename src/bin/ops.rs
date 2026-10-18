@@ -2,6 +2,7 @@
 
 use open_poker_solver::hh;
 use open_poker_solver::json::Json;
+use open_poker_solver::presets;
 use open_poker_solver::report::{solution_json, text_summary};
 use open_poker_solver::{solve, SolveConfig};
 use std::sync::atomic::AtomicBool;
@@ -15,6 +16,7 @@ USAGE
 
 OPTIONS
   --hand-file <path>     PokerStars hand history: derive board/pot/stack/sizes
+  --prefill              use OPS starter ranges for the imported spot
   --board <cards>        flop/turn/river, e.g. AhKd7c or AhKd7c2s
   --oop <range>          out-of-position range, e.g. "QQ+,AKs,AQo"
   --ip <range>           in-position range
@@ -67,6 +69,7 @@ fn main() {
     let mut river_sizes: Option<Vec<f64>> = None;
     let mut hand_file: Option<String> = None;
     let mut ranges_given = false;
+    let mut prefill = false;
 
     let mut i = 0;
     while i < args.len() {
@@ -97,6 +100,7 @@ fn main() {
                     ranges_given = true;
                 }
                 "--hand-file" => hand_file = Some(next(&mut i)?),
+                "--prefill" => prefill = true,
                 "--pot" => cfg.pot = next(&mut i)?.parse().map_err(|_| "bad pot")?,
                 "--stack" => cfg.stack = next(&mut i)?.parse().map_err(|_| "bad stack")?,
                 "--sizes" => cfg.bet_sizes = vec![parse_sizes(&next(&mut i)?)?; 3],
@@ -173,16 +177,36 @@ fn main() {
         imported_spot = Some(spot);
     }
     if hand_file.is_some() && !ranges_given {
-        eprintln!("spot imported. Pass --oop and --ip to solve it.");
-        std::process::exit(0);
-    }
-    if let Some(spot) = &imported_spot {
-        if !quiet {
-            for n in &spot.notes {
-                eprintln!("note: {n}");
+        let spot = imported_spot.as_ref().unwrap();
+        match presets::suggest_ranges(spot) {
+            Some(s) => {
+                if prefill {
+                    cfg.oop_range = s.oop_range.clone();
+                    cfg.ip_range = s.ip_range.clone();
+                    if !quiet {
+                        eprintln!("prefill: OOP {}", s.oop_range);
+                        eprintln!("prefill: IP  {}", s.ip_range);
+                        eprintln!("prefill: {} — edit the ranges for a serious solve", s.source);
+                        for n in &s.notes {
+                            eprintln!("prefill note: {n}");
+                        }
+                    }
+                } else {
+                    eprintln!("prefill: OOP {}", s.oop_range);
+                    eprintln!("prefill: IP  {}", s.ip_range);
+                    eprintln!("prefill: {}", s.source);
+                    for n in &s.notes {
+                        eprintln!("prefill note: {n}");
+                    }
+                    eprintln!("pass --prefill to use these starter ranges, or --oop/--ip to set your own.");
+                    std::process::exit(0);
+                }
             }
-            for w in &spot.warnings {
-                eprintln!("warning: {w}");
+            None => {
+                eprintln!(
+                    "no starter ranges for this spot: pass --oop and --ip to solve it."
+                );
+                std::process::exit(1);
             }
         }
     }

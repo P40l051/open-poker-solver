@@ -6,6 +6,7 @@ pub mod cfr;
 pub mod eval;
 pub mod hh;
 pub mod json;
+pub mod presets;
 pub mod range;
 pub mod report;
 pub mod tree;

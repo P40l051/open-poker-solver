@@ -15,12 +15,12 @@ You can use it, study it, modify it and redistribute it.
 
 ## Download
 
-**Latest release: v0.2.0 — macOS universal (Apple Silicon + Intel)**
+**Latest release: v0.3.0 — macOS universal (Apple Silicon + Intel)**
 
-[**Download OPS-0.2.0-macos-universal.dmg**](https://github.com/P40l051/open-poker-solver/releases/latest/download/OPS-0.2.0-macos-universal.dmg)
+[**Download OPS-0.3.0-macos-universal.dmg**](https://github.com/P40l051/open-poker-solver/releases/latest/download/OPS-0.3.0-macos-universal.dmg)
 
 SHA-256 checksum:
-[`OPS-0.2.0-macos-universal.dmg.sha256`](https://github.com/P40l051/open-poker-solver/releases/latest/download/OPS-0.2.0-macos-universal.dmg.sha256)
+[`OPS-0.3.0-macos-universal.dmg.sha256`](https://github.com/P40l051/open-poker-solver/releases/latest/download/OPS-0.3.0-macos-universal.dmg.sha256)
 
 1. Double-click the DMG.
 2. Drag **OPS** into **Applications**.
@@ -73,15 +73,20 @@ cargo build --release
 - Average strategy, EV per player, exact best response and exploitability.
 - Public betting tree with multiple bet sizes, raises, all-in and rake.
 - PokerStars hand import: board, pot, effective stack, observed sizes, rake,
-  hero cards, OOP/IP players.
+  hero cards, OOP/IP players, positions.
+- Preflop line classifier: original raiser, last preflop aggressor, open size,
+  callers and pot type (limped, SRP, 3-bet, 4-bet+).
+- Optional starter-range prefill for the imported spot. The chart is a heuristic
+  starting point, always editable and never hidden from the solver.
 - Desktop UI with deck picker, 13×13 range grid, strategy tree, per-class
   strategy matrix, combo drill-down and a built-in glossary.
 - CLI with JSON output for scripting and batch use.
 
 ## 2. What OPS does not do
 
-- It does not invent ranges. A single hand history cannot tell you both ranges;
-  you provide them.
+- It does not invent solved ranges. A single hand history cannot tell you both
+  ranges; you provide them. The optional prefill is a heuristic starter chart,
+  clearly labelled and meant to be edited.
 - No multiway (3+ players). Imported multiway hands are reduced to heads-up with
   an explicit warning.
 - No ICM, side pots, multiway antes or progressive rake.
@@ -102,6 +107,8 @@ src/
   tree.rs    public betting tree, sizing, raise cap, all-in, chance
   cfr.rs     vector CFR+, best response, exploitability
   json.rs    minimal JSON parser/writer
+  hh.rs      PokerStars hand history parser + preflop classifier
+  presets.rs starter preflop charts for imported spots
   report.rs  text/JSON reports
   lib.rs     configuration and orchestration
   bin/ops.rs       CLI
@@ -169,7 +176,10 @@ the default browser is opened.
 
 - **Import hand** — paste one PokerStars hand history and press **Import hand**.
   OPS fills the board of the analysed street, pot and effective stack in bb,
-  observed bet sizes, rake, hero cards and the OOP/IP players.
+  observed bet sizes, rake, hero cards and the OOP/IP players. It also shows the
+  preflop line: original raiser, preflop aggressor, open size and pot type
+  (limped / SRP / 3BP / 4BP+). If a starter chart is available, **Use starter
+  ranges** fills the OOP and IP boxes; edit them before solving.
 - **Board** — 3, 4 or 5 cards. Use the **Deck** button for a 52-card picker.
   The first three cards form the flop, then turn, then river.
 - **OOP range / IP range** — the hands each player can have. OOP acts first.
@@ -276,13 +286,20 @@ tree edges.
 ### Import a PokerStars hand
 
 ```bash
-./ops --hand-file hand.txt                # show the derived spot
+./ops --hand-file hand.txt                # show the derived spot + preflop line
+./ops --hand-file hand.txt --prefill      # use the starter chart and solve
 ./ops --hand-file hand.txt --oop "..." --ip "..." --iterations 300
 ```
 
 The import derives the analysed board, pot and effective stack in bb, the two
-players, the sizes actually used and hero cards. Ranges cannot be derived from a
-single hand: they remain your input.
+players, the sizes actually used and hero cards. It also classifies the preflop
+line: original raiser (first raise), last preflop aggressor (last raise), open
+size, callers, positions and pot type. In a 3-bet pot those two players are
+different, so OPS shows both.
+
+Ranges cannot be derived from a single hand. Without `--oop/--ip`, OPS prints the
+available starter ranges; `--prefill` uses them. They are a heuristic chart, not
+a solved range: edit them before treating the result as a serious study.
 
 ---
 
@@ -332,6 +349,8 @@ non-technical users.
 
 ## 8. Declared limits
 
+- Starter ranges are a heuristic chart for common 6-max cash spots. They are not
+  solved GTO ranges and they do not replace a preflop solution.
 - Rake is a percentage of the pot with an optional cap. Side pots and ICM are
   not modelled.
 - With public runouts (turn/flop) the two EVs come from distinct marginals and

@@ -8,6 +8,7 @@
 use open_poker_solver::cfr::{Solution, Solver};
 use open_poker_solver::hh;
 use open_poker_solver::json::Json;
+use open_poker_solver::presets;
 use open_poker_solver::report::solution_json;
 use open_poker_solver::{cards::card_str, solve, SolveConfig};
 use std::io::{BufRead, BufReader, Read, Write};
@@ -293,6 +294,16 @@ fn handle(mut stream: TcpStream, store: Arc<Mutex<Store>>) -> std::io::Result<()
                             ("bb", Json::num(spot.bb)),
                             ("oop", Json::str(spot.oop.clone())),
                             ("ip", Json::str(spot.ip.clone())),
+                            ("oop_position", Json::str(spot.oop_position.clone())),
+                            ("ip_position", Json::str(spot.ip_position.clone())),
+                            ("preflop", preflop_json(&spot.preflop)),
+                            (
+                                "suggested_ranges",
+                                match presets::suggest_ranges(&spot) {
+                                    Some(s) => suggestion_json(&s),
+                                    None => Json::Null,
+                                },
+                            ),
                             ("hero", Json::str(spot.hero.clone().unwrap_or_default())),
                             ("hero_cards", Json::Arr(cards)),
                             ("rake", Json::num(spot.rake)),
@@ -463,6 +474,55 @@ fn tutorial_page() -> String {
 
 fn err_json(msg: &str) -> String {
     Json::obj(vec![("error", Json::str(msg))]).to_string()
+}
+
+fn opt_num(v: Option<f64>) -> Json {
+    match v {
+        Some(x) => Json::num(x),
+        None => Json::Null,
+    }
+}
+
+fn preflop_player_json(p: &hh::PreflopPlayer) -> Json {
+    Json::obj(vec![
+        ("name", Json::str(p.name.clone())),
+        ("position", Json::str(p.position.clone())),
+        ("label", Json::str(p.label())),
+    ])
+}
+
+fn preflop_json(pl: &hh::PreflopLine) -> Json {
+    let optional_player = |p: &Option<hh::PreflopPlayer>| match p {
+        Some(p) => preflop_player_json(p),
+        None => Json::Null,
+    };
+    Json::obj(vec![
+        ("pot_type", Json::str(pl.pot_type.short())),
+        ("pot_type_label", Json::str(pl.pot_type.label())),
+        ("raises", Json::num(pl.raises as f64)),
+        ("summary", Json::str(pl.summary())),
+        ("roles", Json::str(pl.roles())),
+        ("opener", optional_player(&pl.opener)),
+        ("last_aggressor", optional_player(&pl.last_aggressor)),
+        ("open_to", opt_num(pl.open_to)),
+        ("open_to_bb", opt_num(pl.open_to_bb)),
+        (
+            "callers",
+            Json::Arr(pl.callers.iter().map(preflop_player_json).collect()),
+        ),
+    ])
+}
+
+fn suggestion_json(s: &presets::RangeSuggestion) -> Json {
+    Json::obj(vec![
+        ("oop_range", Json::str(s.oop_range.clone())),
+        ("ip_range", Json::str(s.ip_range.clone())),
+        ("source", Json::str(s.source.clone())),
+        (
+            "notes",
+            Json::Arr(s.notes.iter().cloned().map(Json::Str).collect()),
+        ),
+    ])
 }
 
 fn job_json(j: &JobState) -> String {

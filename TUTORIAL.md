@@ -175,24 +175,42 @@ hand is filled automatically.
 1. Paste a PokerStars hand history into **Import hand**.
 2. Press **Import hand**.
 3. OPS fills: board, pot (bb), stack (bb), observed sizes, rake %, hero cards.
-4. Notes and warnings appear below:
-   - grey **notes** (rake, unusual sizing) — informative;
-   - orange **warnings** (multiway, hero not in hand) — real limits.
+4. The **Preflop line** box shows the original raiser, the last preflop
+   aggressor, open size, callers and pot type: limped, SRP, 3BP or 4BP+.
+5. Notes and warnings appear below:
+   - grey **notes** (rake, unusual sizing, 3-bet roles) — informative;
+   - orange **warnings** (multiway, hero not in hand, opener folded) — real
+     limits.
+6. If a starter chart is available, press **Use starter ranges** to fill OOP and
+   IP. It is a heuristic, not a solved GTO range: edit it before solving.
 
 Example (real hand):
 
 ```
-street   river (Qs 2d Th Td 6c)
-pot      2.07 = 103.50 bb
-stack    0.64 = 32.00 bb
-players  OOP cobra.it57 / IP Pekoz051
-sizes    1% pot
-rake     5.7%
-hero     [As Ac]
+street       river (Qs 2d Th Td 6c)
+pot          2.07 chips = 103.50 bb
+stack        0.64 chips = 32.00 bb
+players      OOP cobra.it57 / IP Pekoz051
+positions    OOP BB / IP BTN
+preflop      BTN opens 5.00 bb, BB/HJ calls -> SRP
+roles        preflop raiser BTN (Pekoz051)
+sizes        1% pot
+rake         5.7%
+hero         Pekoz051 [As Ac]
 ```
 
 A 1% size is the real bet (€0.02 into €2.07): add `0.75` next to it for a useful
 tree.
+
+In a 3-bet pot the two roles are different, for example:
+
+```
+preflop      CO opens 2.50 bb, BTN 3-bets -> 3BP
+roles        opener CO (CO) / preflop aggressor BTN (BTN)
+```
+
+The original raiser is the first raise; the preflop aggressor is the last raise.
+Do not assign the opener range to the 3-bettor.
 
 ### 5.2 Enter ranges
 
@@ -205,7 +223,9 @@ above:
 If a range is fully blocked by the board you get
 `a range has no combo compatible with the board`.
 
-You can type the shorthand or use **Grid** for each range.
+You can type the shorthand or use **Grid** for each range. The starter-range
+button is only a starting point: for a serious study replace it with the ranges
+you believe are correct for the players and the preflop line.
 
 ### 5.3 Run the solve
 
@@ -284,7 +304,10 @@ win probabilities.
 
 ```bash
 ./ops --hand-file hand.txt
-# prints the derived spot and exits
+# prints the derived spot and the preflop line, then exits
+
+./ops --hand-file hand.txt --prefill
+# uses the OPS starter chart and solves
 
 ./ops --hand-file hand.txt \
   --oop "22+,A2s+,K9s+,QTs+,JTs,ATo+" \
@@ -292,7 +315,10 @@ win probabilities.
   --iterations 400
 ```
 
-The import overrides board/pot/stack/sizes; ranges remain yours.
+The import overrides board/pot/stack/sizes; ranges remain yours. Without
+`--oop/--ip`, OPS prints the starter ranges (if the spot is supported);
+`--prefill` uses them. Starter ranges are heuristic: edit them for a serious
+study.
 
 ### 6.3 JSON for scripts
 
@@ -383,6 +409,8 @@ Real measurements on an Apple Silicon Mac (release build):
 | `could not read the blinds` | header is not PokerStars | unsupported format |
 | `4 players active on the turn…` | multiway | reduced to heads-up; verify the two names |
 | `hero … is not in the hand` | hero folded | cards are informational only |
+| `preflop opener … folded before the flop` | the original raiser is not in the solved pair | ranges refer to the remaining players; do not use opener ranges |
+| `no starter ranges for this spot` | opener/aggressor not in the heads-up pair | pass `--oop/--ip` manually |
 | `no rake recorded …` | rake rounded to zero | set Rake % manually |
 | `observed bet is 1% of the pot` | unusual bet in the hand | add a normal size |
 
