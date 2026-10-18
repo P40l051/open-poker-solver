@@ -449,8 +449,8 @@ fn html_escape(s: &str) -> String {
 fn tutorial_page() -> String {
     format!(
         r#"<!doctype html>
-<html lang="it"><head><meta charset="utf-8">
-<title>ops — guida</title>
+<html lang="en"><head><meta charset="utf-8">
+<title>ops — guide</title>
 <style>
  body{{margin:0;background:#0d1117;color:#e6edf3;font:13px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}}
  header{{position:sticky;top:0;display:flex;gap:14px;align-items:center;padding:12px 20px;background:#161b22;border-bottom:1px solid #2a3444}}
@@ -462,7 +462,7 @@ fn tutorial_page() -> String {
 </style></head>
 <body>
 <header>
-  <h1>ops — guida</h1><span class="sp"></span>
+  <h1>ops — guide</h1><span class="sp"></span>
   <a href="/">← app</a>
   <a href="/tutorial.md" target="_blank">markdown</a>
 </header>

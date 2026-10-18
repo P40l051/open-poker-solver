@@ -116,6 +116,13 @@
   .mcell.pair{background:#22304a;color:#cfe0f5}
   .mcell:hover{border-color:var(--accent2)}
   .mcell.sel{background:linear-gradient(180deg,#58a6ff,#4cc38a);border-color:#8fd0ff;color:#06131f}
+  .rangeSlider{display:flex;align-items:center;gap:12px;margin-top:16px}
+  .rangeSlider .rl-label{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);white-space:nowrap}
+  .rangeSlider input[type=range]{flex:1 1 auto;width:auto;-webkit-appearance:none;appearance:none;height:6px;padding:0;border-radius:99px;background:var(--panel2);border:1px solid var(--line);cursor:pointer}
+  .rangeSlider input[type=range]:focus{outline:none;border-color:var(--accent2)}
+  .rangeSlider input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:linear-gradient(180deg,#58a6ff,#4cc38a);border:1px solid #8fd0ff;cursor:pointer}
+  .rangeSlider input[type=range]::-moz-range-thumb{width:16px;height:16px;border:1px solid #8fd0ff;border-radius:50%;background:#58a6ff;cursor:pointer}
+  .rangeSlider .val{min-width:46px;text-align:right;font-size:12px;font-variant-numeric:tabular-nums;color:var(--text)}
   @media(max-width:640px){
     .matrix{gap:3px}
     .mcell{font-size:8px;border-radius:4px}
@@ -159,6 +166,27 @@
   .treeBet{margin-left:auto;flex:none}
   .treeEnd{font-size:10px;color:var(--muted);border:1px dashed var(--line);border-radius:99px;padding:1px 6px}
   .treeEmpty{padding:10px;color:var(--muted);font-size:12px}
+
+  /* decision graph */
+  .graphWrap{margin-top:12px;border:1px solid var(--line);border-radius:9px;background:var(--panel);padding:8px;position:relative}
+  .graphBar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .graphTools{display:flex;gap:6px}
+  .graphBar button{padding:4px 10px;font-size:11px}
+  .graphBar input{width:130px;padding:4px 8px;font-size:12px}
+  .graphSvg{width:100%;height:560px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;cursor:grab;display:block;touch-action:none;user-select:none}
+  .graphSvg.grabbing{cursor:grabbing}
+  .graphSvg text{pointer-events:none}
+  .gnode rect{transition:stroke .12s}
+  .gnode:hover rect{stroke:var(--accent2)}
+  .graphPop{position:absolute;z-index:60;width:200px;background:#0b1018;border:1px solid var(--line);border-radius:9px;padding:10px;box-shadow:0 12px 30px rgba(0,0,0,.6)}
+  .graphPop[hidden]{display:none}
+  .graphPopTitle{font-size:10px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+  .graphPop input{width:100%;padding:6px 8px;font-size:13px}
+  .graphCardChips{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+  .graphCardChips button{padding:2px 7px;font-size:11px;border-radius:6px;background:#f0f3f7;color:#10151c;border:0;cursor:pointer;font-weight:700;font-family:ui-monospace,monospace}
+  .graphCardChips button.on{outline:2px solid var(--accent2);outline-offset:1px}
+  .graphPopHint{font-size:10.5px;color:var(--muted);margin-top:6px;min-height:12px}
+  @media(max-width:640px){ .graphSvg{height:420px} }
 
   /* glossary */
   .glossaryModal{width:min(780px,100%)}
@@ -250,12 +278,10 @@
       <div><label for="s2" data-help="bet_size">River sizes</label><input id="s2" class="mono" value="0.75" spellcheck="false"></div>
     </div>
 
-    <div class="row3">
+    <div class="row">
       <div><label for="raises" data-help="max_raises">Max raises</label><input id="raises" type="number" value="1" min="0" max="4"></div>
-      <div><label for="runouts" data-help="runouts">River samples</label><input id="runouts" type="number" value="0" min="0" step="1"></div>
       <div><label for="iters" data-help="iterations">Iterations</label><input id="iters" type="number" value="600" min="10" step="50"></div>
     </div>
-    <div class="hint">River samples 0 = exact (turn/river). On a flop the solver samples 7 turn cards and 4 rivers by default.</div>
 
     <div class="actions">
       <button id="solve">Solve</button>
@@ -296,6 +322,7 @@
           <div class="segmented" id="treeViewToggle">
             <button type="button" data-tv="table" class="on">Table</button>
             <button type="button" data-tv="tree">Tree</button>
+            <button type="button" data-tv="graph">Graph</button>
           </div>
         </div>
       </div>
@@ -306,6 +333,27 @@
         </table>
       </div>
       <div class="treeWrap" id="treeWrap" style="display:none"></div>
+      <div class="graphWrap" id="graphWrap" style="display:none">
+        <div class="graphBar">
+          <div class="graphTools">
+            <button type="button" class="ghost" id="graphFit">Fit</button>
+            <button type="button" class="ghost" id="graphZoomIn" title="Zoom in">+</button>
+            <button type="button" class="ghost" id="graphZoomOut" title="Zoom out">−</button>
+            <button type="button" class="ghost" id="graphExpand">Expand root</button>
+            <button type="button" class="ghost" id="graphCollapse">Collapse all</button>
+          </div>
+          <input id="graphSearch" class="mono" placeholder="go to node #…" spellcheck="false">
+          <span class="muted" id="graphInfo" style="font-size:11px"></span>
+        </div>
+        <svg id="graphSvg" class="graphSvg" aria-label="Decision graph"></svg>
+        <div class="graphPop" id="graphCardPop" hidden>
+          <div class="graphPopTitle">Open a runout card</div>
+          <input id="graphCardInput" class="mono" placeholder="e.g. 7h" spellcheck="false" autocomplete="off" maxlength="2">
+          <div class="graphCardChips" id="graphCardChips"></div>
+          <div class="graphPopHint" id="graphCardHint">Type a card and press Enter, or pick a chip. Only that branch expands.</div>
+        </div>
+        <div class="hint" style="margin-top:6px">Click <b>+</b> on a node to expand; on a <b>cards</b> box pick a single card to open only that branch. Click a node → hand detail. Drag = pan, <b>Ctrl</b>+wheel = zoom.</div>
+      </div>
       <div class="detail" id="detail"></div>
     </div>
   </section>
@@ -343,6 +391,12 @@
       <span class="muted mono" id="rangeStats" style="white-space:nowrap"></span>
     </div>
     <div class="matrix" id="rangeGrid"></div>
+    <div class="rangeSlider">
+      <span class="rl-label">Quick select</span>
+      <input id="rangePct" type="range" min="0" max="100" step="1" value="0">
+      <span class="mono val" id="rangePctVal">0%</span>
+    </div>
+    <div class="hint" style="margin-top:4px">Drag the slider to pick the top X% of hands (strongest first); you can still fine-tune cells in the grid.</div>
     <div class="modalFoot">
       <span class="hint">Row = first card · column = second card</span>
       <div style="display:flex;gap:8px">
@@ -471,10 +525,10 @@ const HELP = {
     example: "1 = bet, raise and calls/folds only."
   },
   runouts: {
-    title: "Runout samples", tag: "solver",
-    short: "Flop approximation. 0 = exact on turn and river.",
-    long: "On a flop, solving every turn and river is expensive, so OPS samples turn and river cards. Turn and river solves are exact when this is 0. More samples = more accurate but slower.",
-    example: "0 exact · 6 sampled rivers per turn."
+    title: "Runouts", tag: "solver",
+    short: "How OPS deals the remaining community cards.",
+    long: "Turn and river solves enumerate every remaining card exactly. A flop solve would need 49 turns × 48 rivers, which is very expensive, so OPS samples 7 turns and 6 rivers per turn (a fast approximation). The CLI can adjust this with --turn-samples and --runouts.",
+    example: "Flop default: 7 turns × 6 rivers."
   },
   iterations: {
     title: "Iterations", tag: "solver",
@@ -533,7 +587,7 @@ const HELP = {
   tree: {
     title: "Strategy tree", tag: "tree",
     short: "Every row is a decision node of the same solution — not a separate solution.",
-    long: "The tree maps every decision point and every branch. Expand a node to see its actions with their frequencies. Chance cards dealt between streets appear on the branch.",
+    long: "The tree maps every decision point and every branch. Three views: Table (one row per node), Tree (expandable indented list) and Graph (a node-link diagram with action frequencies on the edges). In the graph, expand a node with +, click a chance box and type or pick one card to open only that runout branch, click a node for its hand detail, drag to pan and Ctrl+scroll to zoom.",
     example: "River with one bet size usually has only four decision nodes."
   },
   blocker: {
@@ -711,7 +765,7 @@ function config(){
     max_raises: parseInt($("raises").value||"1"),
     rake_pct: parseFloat($("rake").value||"0") / 100,
     rake_cap: parseFloat($("rapecap").value||"0"),
-    runout_samples: parseInt($("runouts").value||"0"),
+    runout_samples: 0,
     iterations: parseInt($("iters").value||"600"),
     check_every: 25,
     target_exploitability: 0
@@ -809,7 +863,7 @@ function renderBoardPicker(){
     : `${n}/5 · ${boardPick.join(" ")}`;
   $("deckNote").textContent = hero.size
     ? "Hero cards excluded: " + [...hero].join(" ")
-    : "3, 4 o 5 carte";
+    : "3, 4 or 5 cards";
 }
 
 function confirmBoardPicker(){
@@ -958,6 +1012,56 @@ function rangeCombos(sel){
   return sel.pairs.size*6 + sel.suited.size*4 + sel.offsuit.size*12;
 }
 
+// Hand classes ordered strongest-first by a preflop heuristic (pairs, suited
+// bonus, gap penalty). Used only by the "Quick select" percentage slider.
+const RANGE_ORDER = (() => {
+  const list = [];
+  for(let hi=0; hi<=12; hi++){
+    for(let lo=0; lo<=hi; lo++){
+      if(hi === lo) list.push({hi, lo, kind:"p"});
+      else { list.push({hi, lo, kind:"s"}); list.push({hi, lo, kind:"o"}); }
+    }
+  }
+  const score = (h)=>{
+    const hv = h.hi + 2, lv = h.lo + 2;
+    if(h.kind === "p") return 30 + hv * 3;
+    let s = hv * 3 + lv;
+    if(h.kind === "s") s += 6;
+    const gap = h.hi - h.lo - 1;
+    s -= gap * 2;
+    if(gap === 0) s += 2;
+    return s;
+  };
+  const kindRank = (x)=> x.kind === "p" ? 0 : x.kind === "s" ? 1 : 2;
+  list.sort((a, b)=>{
+    const d = score(b) - score(a);
+    if(d) return d;
+    if(b.hi !== a.hi) return b.hi - a.hi;
+    if(kindRank(a) !== kindRank(b)) return kindRank(a) - kindRank(b);
+    return a.lo - b.lo;
+  });
+  return list;
+})();
+
+function rangeCombosOf(h){ return h.kind === "p" ? 6 : h.kind === "s" ? 4 : 12; }
+
+function selectRangeByPct(pct){
+  const sel = emptyRangeSel();
+  const target = Math.max(0, Math.min(1326, pct / 100 * 1326));
+  let acc = 0;
+  for(const h of RANGE_ORDER){
+    if(acc >= target) break;
+    markRangeHand(sel, h.hi, h.lo, h.kind);
+    acc += rangeCombosOf(h);
+  }
+  return sel;
+}
+
+function setRangeSlider(pct){
+  $("rangePct").value = String(pct);
+  $("rangePctVal").textContent = pct + "%";
+}
+
 function updateRangeStats(){
   const combos = rangeCombos(rangeSel);
   const classes = rangeSel.pairs.size + rangeSel.suited.size + rangeSel.offsuit.size;
@@ -977,6 +1081,7 @@ function paintRangeCell(cell, on){
   const el = rangeCellEls[cell.kind + cell.hi + "-" + cell.lo];
   if(el) el.classList.toggle("sel", on);
   updateRangeStats();
+  setRangeSlider(Math.round(rangeCombos(rangeSel) / 1326 * 100));
 }
 
 function buildRangeGrid(){
@@ -1019,6 +1124,7 @@ function openRangePicker(target){
   $("rangeTitle").textContent = target === "oop" ? "Range OOP" : "Range IP";
   buildRangeGrid();
   updateRangeStats();
+  setRangeSlider(Math.round(rangeCombos(rangeSel) / 1326 * 100));
   $("rangeOverlay").classList.add("open");
   document.body.style.overflow = "hidden";
   setTimeout(()=>$("rangeOk").focus(), 30);
@@ -1269,14 +1375,359 @@ function renderTree(){
   });
 }
 
-function updateTreeView(){
-  const isTree = treeView === "tree";
-  $("nodesWrap").style.display = isTree ? "none" : "";
-  $("treeWrap").style.display = isTree ? "" : "none";
-  document.querySelectorAll("#treeViewToggle button").forEach(b=>{
-    b.classList.toggle("on", b.dataset.tv === treeView);
+/* ---------- decision graph (lazy SVG) ---------- */
+const GNODE_W = 200, GNODE_H = 66, GCHANCE_W = 96, GCHANCE_H = 30, GEND_W = 54, GEND_H = 24;
+const GCOL = 300, GROW = 86;
+let graphExpandedNodes = new Set();
+let graphOpenCards = new Map();
+let graphView = null;
+let graphByNodeId = new Map();
+let graphItemByKey = new Map();
+let graphBounds = null;
+let graphDragged = false;
+let graphPopChanceKey = null;
+
+function graphChanceKey(nodeId, ai){ return "c" + nodeId + ":" + ai; }
+function gw(it){ return it.w || (it.kind === "node" ? GNODE_W : it.kind === "chance" ? GCHANCE_W : GEND_W); }
+function gh(it){ return it.kind === "node" ? GNODE_H : it.kind === "chance" ? GCHANCE_H : GEND_H; }
+function boardText(b){ return String(b || "").match(/../g)?.join(" ") || ""; }
+function normCard(s){
+  const t = String(s || "").replace(/[^A-Za-z0-9]/g, "");
+  if(t.length !== 2) return null;
+  const r = t[0].toUpperCase(), su = t[1].toLowerCase();
+  if(!"23456789TJQKA".includes(r) || !"cdhs".includes(su)) return null;
+  return r + su;
+}
+
+function buildGraphItem(node){
+  const item = {key:"n" + node.id, kind:"node", node, children:[]};
+  if(!graphExpandedNodes.has(node.id)) return item;
+  const acts = node.actions || [];
+  const edges = node.edges || [];
+  acts.forEach((a, ai)=>{
+    const targets = edges.filter(e=>e.action_index === ai);
+    if(targets.length === 0){
+      item.children.push({edge:{label:a.label, frequency:a.frequency}, item:{key:"end:" + node.id + ":" + ai, kind:"end", children:[]}});
+      return;
+    }
+    const allChance = targets.every(t=>t.chance);
+    if(allChance && targets.length > 1){
+      const ck = graphChanceKey(node.id, ai);
+      const cards = targets.map(t=>t.chance);
+      const chosen = (graphOpenCards.get(ck) || []).filter(c=>cards.includes(c));
+      const label = chosen.length ? chosen.join(" ") + " ▸" : `${cards.length} cards ▸`;
+      const citem = {key:ck, kind:"chance", nodeId:node.id, ai, cards, targets, chosen, w:Math.max(GCHANCE_W, label.length * 7.2 + 16), children:[]};
+      chosen.forEach(card=>{
+        const t = targets.find(x=>x.chance === card);
+        if(!t) return;
+        const child = graphByNodeId.get(t.target);
+        if(child) citem.children.push({edge:{label:card, frequency:a.frequency, chance:true}, item:buildGraphItem(child)});
+      });
+      item.children.push({edge:{label:a.label, frequency:a.frequency}, item:citem});
+    } else {
+      targets.forEach(t=>{
+        const child = graphByNodeId.get(t.target);
+        if(!child) return;
+        item.children.push({edge:{label:a.label, frequency:a.frequency, chance:t.chance}, item:buildGraphItem(child)});
+      });
+    }
   });
-  if(isTree) renderTree();
+  return item;
+}
+
+function layoutGraph(root){
+  let nextY = 0, maxX = 0, minY = Infinity, maxY = -Infinity;
+  const items = [];
+  const place = (item, depth, parent)=>{
+    item.depth = depth;
+    item.x = depth * GCOL;
+    item.parent = parent;
+    items.push(item);
+    maxX = Math.max(maxX, item.x + gw(item));
+    const kids = item.children || [];
+    if(kids.length === 0){
+      item.y = nextY;
+      nextY += GROW;
+    } else {
+      kids.forEach(c=>place(c.item, depth + 1, item));
+      item.y = (kids[0].item.y + kids[kids.length - 1].item.y) / 2;
+    }
+    minY = Math.min(minY, item.y);
+    maxY = Math.max(maxY, item.y + gh(item));
+  };
+  place(root, 0, null);
+  return {items, bounds:{minX:0, minY, maxX, maxY}};
+}
+
+function svgEdgePath(parent, child, edge){
+  const x1 = parent.x + gw(parent), y1 = parent.y + gh(parent) / 2;
+  const x2 = child.x, y2 = child.y + gh(child) / 2;
+  const mx = (x1 + x2) / 2;
+  const d = `M${x1.toFixed(1)},${y1.toFixed(1)} C${mx.toFixed(1)},${y1.toFixed(1)} ${mx.toFixed(1)},${y2.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}`;
+  const col = edge.chance ? "#8b98a9" : actionColor(edge.label);
+  const sw = (1.5 + (edge.frequency || 0) * 3).toFixed(2);
+  return `<path d="${d}" fill="none" stroke="${col}" stroke-width="${sw}" opacity="0.9"/>`;
+}
+
+function svgEdgeLabel(parent, child, edge){
+  const x1 = parent.x + gw(parent), y1 = parent.y + gh(parent) / 2;
+  const x2 = child.x, y2 = child.y + gh(child) / 2;
+  const mx = (x1 + x2) / 2;
+  const cy = (y1 + y2) / 2;
+  if(edge.chance){
+    const t = escHtml(edge.label);
+    const w = 32, h = 18;
+    return `<rect x="${(mx - w / 2).toFixed(1)}" y="${(cy - h / 2).toFixed(1)}" width="${w}" height="${h}" rx="4" fill="#f0f3f7" stroke="#c7d2df"/>`
+      + `<text x="${mx.toFixed(1)}" y="${(cy + 4).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="#10151c" font-family="ui-monospace,monospace">${t}</text>`;
+  }
+  const kind = String(edge.label).trim().split(/\s+/)[0];
+  const t = `${escHtml(kind)} ${(edge.frequency * 100).toFixed(0)}%`;
+  const w = Math.max(46, t.length * 6.9 + 16), h = 19;
+  const col = actionColor(edge.label);
+  return `<rect x="${(mx - w / 2).toFixed(1)}" y="${(cy - h / 2).toFixed(1)}" width="${w.toFixed(1)}" height="${h}" rx="9" fill="${col}" stroke="#0d1117" stroke-width="1"/>`
+    + `<text x="${mx.toFixed(1)}" y="${(cy + 4).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="#06131f" font-family="ui-monospace,monospace">${t}</text>`;
+}
+
+function svgNodeBox(item){
+  const n = item.node, x = item.x, y = item.y;
+  const selected = nodeData && nodeData.id === n.id;
+  const acts = n.actions || [];
+  const barW = GNODE_W - 20;
+  let bx = x + 10, bar = "";
+  acts.forEach(a=>{
+    const w = Math.max(0, (a.frequency || 0) * barW);
+    if(w > 0.2) bar += `<rect x="${bx.toFixed(1)}" y="${y + GNODE_H - 13}" width="${w.toFixed(1)}" height="7" fill="${actionColor(a.label)}"/>`;
+    bx += w;
+  });
+  const tip = `#${n.id} ${n.street} ${n.player}\n${boardText(n.board)}\npot ${n.pot.toFixed(2)}\n`
+    + acts.map(a=>`${a.label} ${(a.frequency * 100).toFixed(1)}%`).join("\n");
+  const expandable = acts.length > 0;
+  const expanded = graphExpandedNodes.has(n.id);
+  const toggle = expandable
+    ? `<g class="gtoggle" data-toggle="${n.id}" style="cursor:pointer">`
+      + `<circle cx="${x + GNODE_W}" cy="${y + GNODE_H / 2}" r="9" fill="#0d1117" stroke="#2a3444"/>`
+      + `<text x="${x + GNODE_W}" y="${y + GNODE_H / 2 + 4}" text-anchor="middle" font-size="13" fill="#8b98a9" font-family="ui-monospace,monospace">${expanded ? "−" : "+"}</text></g>`
+    : "";
+  return `<g class="gnode" data-node="${n.id}" style="cursor:pointer">
+    <title>${escHtml(tip)}</title>
+    <rect x="${x}" y="${y}" width="${GNODE_W}" height="${GNODE_H}" rx="9" fill="${selected ? "#20304a" : "#1c2330"}" stroke="${selected ? "#58a6ff" : "#2a3444"}"/>
+    <text x="${x + 12}" y="${y + 16}" font-size="11" fill="#e6edf3" font-family="ui-monospace,monospace">#${n.id} ${n.street}</text>
+    <text x="${x + 12}" y="${y + 31}" font-size="11" fill="#8b98a9" font-family="ui-monospace,monospace">${escHtml(boardText(n.board))}</text>
+    <text x="${x + 12}" y="${y + 46}" font-size="11" fill="${n.player === "OOP" ? "#7cb3ef" : "#6fd39b"}">${n.player} · pot ${n.pot.toFixed(1)}</text>
+    <rect x="${x + 10}" y="${y + GNODE_H - 13}" width="${barW}" height="7" rx="3" fill="#0d1117"/>
+    ${bar}
+    ${toggle}
+  </g>`;
+}
+
+function svgChanceBox(item){
+  const x = item.x, y = item.y, w = item.w || GCHANCE_W;
+  const chosen = item.chosen || [];
+  const active = chosen.length > 0;
+  const label = active ? chosen.join(" ") + " ▸" : `${item.cards.length} cards ▸`;
+  const title = active
+    ? `Open cards: ${chosen.join(" ")} — click to add another`
+    : `${item.cards.length} cards — click to choose a card`;
+  return `<g class="gchance" data-chance="${item.key}" style="cursor:pointer">
+    <title>${escHtml(title)}</title>
+    <rect x="${x}" y="${y}" width="${w.toFixed(1)}" height="${GCHANCE_H}" rx="8" fill="${active ? "#1d3350" : "#172234"}" stroke="${active ? "#58a6ff" : "#3b6ea5"}" stroke-dasharray="${active ? "none" : "4 3"}"/>
+    <text x="${(x + w / 2).toFixed(1)}" y="${y + GCHANCE_H / 2 + 4}" text-anchor="middle" font-size="11" fill="#9ecdff" font-family="ui-monospace,monospace">${escHtml(label)}</text>
+  </g>`;
+}
+
+function svgEndBox(item){
+  const x = item.x, y = item.y;
+  return `<g class="gend">
+    <rect x="${x}" y="${y}" width="${GEND_W}" height="${GEND_H}" rx="12" fill="#161b22" stroke="#2a3444" stroke-dasharray="3 3"/>
+    <text x="${x + GEND_W / 2}" y="${y + GEND_H / 2 + 4}" text-anchor="middle" font-size="10" fill="#8b98a9">end</text>
+  </g>`;
+}
+
+function applyGraphTransform(svg){
+  const g = svg.querySelector("#graphG");
+  if(!g || !graphView) return;
+  g.setAttribute("transform", `translate(${graphView.x.toFixed(2)},${graphView.y.toFixed(2)}) scale(${graphView.k.toFixed(4)})`);
+}
+
+function graphFit(){
+  const svg = $("graphSvg");
+  if(!graphBounds) return;
+  const w = svg.clientWidth || 800, h = svg.clientHeight || 560;
+  const b = graphBounds;
+  const cw = Math.max(1, b.maxX - b.minX), ch = Math.max(1, b.maxY - b.minY);
+  const k = Math.min((w - 24) / cw, (h - 24) / ch, 1.1);
+  graphView = {k, x:(w - cw * k) / 2 - b.minX * k, y:(h - ch * k) / 2 - b.minY * k};
+  applyGraphTransform(svg);
+}
+
+function zoomGraph(f){
+  const svg = $("graphSvg");
+  if(!graphView) return;
+  const w = svg.clientWidth || 800, h = svg.clientHeight || 560;
+  const k = Math.max(0.15, Math.min(2.5, graphView.k * f));
+  graphView.x = w / 2 - (w / 2 - graphView.x) * (k / graphView.k);
+  graphView.y = h / 2 - (h / 2 - graphView.y) * (k / graphView.k);
+  graphView.k = k;
+  applyGraphTransform(svg);
+}
+
+function graphToggleNode(id){
+  if(graphExpandedNodes.has(id)) graphExpandedNodes.delete(id); else graphExpandedNodes.add(id);
+  closeGraphCardPop();
+  renderGraph();
+}
+
+/* ---- chance branch: open a single card ---- */
+function graphWriteCard(key, card, mode){
+  const item = graphItemByKey.get(key);
+  if(!item) return false;
+  const c = normCard(card);
+  if(!c || !item.cards.includes(c)) return false;
+  const cur = new Set(graphOpenCards.get(key) || []);
+  if(mode === "toggle" && cur.has(c)) cur.delete(c); else cur.add(c);
+  if(cur.size) graphOpenCards.set(key, [...cur]); else graphOpenCards.delete(key);
+  return true;
+}
+
+function graphCardPopPosition(){
+  const item = graphPopChanceKey && graphItemByKey.get(graphPopChanceKey);
+  const pop = $("graphCardPop"), wrap = $("graphWrap"), svg = $("graphSvg");
+  if(!item || !graphView){ pop.hidden = true; return; }
+  const srect = svg.getBoundingClientRect(), wrect = wrap.getBoundingClientRect();
+  let left = srect.left - wrect.left + graphView.x + item.x * graphView.k;
+  let top = srect.top - wrect.top + graphView.y + (item.y + gh(item)) * graphView.k + 8;
+  const pw = pop.offsetWidth || 200, ph = pop.offsetHeight || 130;
+  left = Math.max(6, Math.min(left, wrap.clientWidth - pw - 6));
+  top = Math.max(6, Math.min(top, wrap.clientHeight - ph - 6));
+  pop.style.left = left + "px";
+  pop.style.top = top + "px";
+}
+
+function openGraphCardPop(key, focus){
+  const item = graphItemByKey.get(key);
+  if(!item){ closeGraphCardPop(); return; }
+  graphPopChanceKey = key;
+  const pop = $("graphCardPop");
+  pop.hidden = false;
+  const chosen = item.chosen || [];
+  $("graphCardChips").innerHTML = item.cards.map(c=>
+    `<button type="button" data-card="${c}" class="${chosen.includes(c) ? "on" : ""}">${c}</button>`).join("");
+  $("graphCardHint").textContent = chosen.length
+    ? `Open: ${chosen.join(" ")} · click a chip again to close that branch`
+    : "Type a card and press Enter, or pick a chip. Only that branch expands.";
+  graphCardPopPosition();
+  if(focus){
+    $("graphCardInput").value = "";
+    $("graphCardInput").focus();
+  }
+}
+
+function closeGraphCardPop(){
+  graphPopChanceKey = null;
+  const pop = $("graphCardPop");
+  if(pop) pop.hidden = true;
+}
+
+function graphRevealNode(target){
+  const start = graphByNodeId.get(0) || nodes[0];
+  if(!start) return false;
+  if(target === start.id){ selectNode(target); return true; }
+  const prev = new Map();
+  const q = [start.id];
+  const seen = new Set([start.id]);
+  let found = false;
+  while(q.length && !found){
+    const cur = graphByNodeId.get(q.shift());
+    if(!cur) continue;
+    for(const e of (cur.edges || [])){
+      if(seen.has(e.target)) continue;
+      seen.add(e.target);
+      prev.set(e.target, {from:cur.id, ai:e.action_index, chance:e.chance});
+      if(e.target === target){ found = true; break; }
+      q.push(e.target);
+    }
+  }
+  if(!found) return false;
+  let id = target;
+  const chain = [];
+  while(prev.has(id)){ const step = prev.get(id); chain.push({to:id, ...step}); id = step.from; }
+  chain.reverse();
+  graphExpandedNodes.add(start.id);
+  chain.forEach(step=>{
+    graphExpandedNodes.add(step.from);
+    if(step.chance){
+      const key = graphChanceKey(step.from, step.ai);
+      const cur = new Set(graphOpenCards.get(key) || []);
+      cur.add(step.chance);
+      graphOpenCards.set(key, [...cur]);
+    }
+  });
+  closeGraphCardPop();
+  renderGraph();
+  selectNode(target);
+  return true;
+}
+
+function bindGraphEvents(svg){
+  svg.querySelectorAll(".gnode").forEach(g=>{
+    g.addEventListener("click", ()=>{ if(graphDragged) return; selectNode(Number(g.dataset.node)); });
+  });
+  svg.querySelectorAll(".gtoggle").forEach(g=>{
+    g.addEventListener("click", (e)=>{ e.stopPropagation(); if(graphDragged) return; graphToggleNode(Number(g.dataset.toggle)); });
+  });
+  svg.querySelectorAll(".gchance").forEach(g=>{
+    g.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      if(graphDragged) return;
+      if(graphPopChanceKey === g.dataset.chance && !$("graphCardPop").hidden) closeGraphCardPop();
+      else openGraphCardPop(g.dataset.chance, true);
+    });
+  });
+}
+
+function renderGraph(){
+  const svg = $("graphSvg");
+  const info = $("graphInfo");
+  if(!nodes.length){ svg.innerHTML = ""; info.textContent = ""; closeGraphCardPop(); return; }
+  graphByNodeId = new Map(nodes.map(n=>[n.id, n]));
+  const root = graphByNodeId.get(0) || nodes[0];
+  const rootItem = buildGraphItem(root);
+  const L = layoutGraph(rootItem);
+  graphBounds = L.bounds;
+  graphItemByKey = new Map(L.items.map(it=>[it.key, it]));
+  let shown = 0;
+  L.items.forEach(it=>{ if(it.kind === "node") shown++; });
+  info.textContent = `${shown} / ${nodes.length} visible nodes`;
+  const paths = [], labels = [], boxes = [];
+  L.items.forEach(parent=>{ (parent.children || []).forEach(c=>{
+    paths.push(svgEdgePath(parent, c.item, c.edge));
+    labels.push(svgEdgeLabel(parent, c.item, c.edge));
+  }); });
+  L.items.forEach(it=>{
+    if(it.kind === "node") boxes.push(svgNodeBox(it));
+    else if(it.kind === "chance") boxes.push(svgChanceBox(it));
+    else boxes.push(svgEndBox(it));
+  });
+  // Paths first, then boxes, then labels on top so nothing covers the text.
+  svg.innerHTML = `<g id="graphG">${paths.join("")}${boxes.join("")}${labels.join("")}</g>`;
+  if(!graphView) graphFit(); else applyGraphTransform(svg);
+  bindGraphEvents(svg);
+  if(graphPopChanceKey){
+    if(graphItemByKey.has(graphPopChanceKey)) openGraphCardPop(graphPopChanceKey, false);
+    else closeGraphCardPop();
+  }
+}
+
+function updateTreeView(){
+  const v = treeView;
+  $("nodesWrap").style.display = v === "table" ? "" : "none";
+  $("treeWrap").style.display = v === "tree" ? "" : "none";
+  $("graphWrap").style.display = v === "graph" ? "" : "none";
+  document.querySelectorAll("#treeViewToggle button").forEach(b=>{
+    b.classList.toggle("on", b.dataset.tv === v);
+  });
+  if(v === "tree") renderTree();
+  if(v === "graph") renderGraph();
 }
 
 function renderNodes(list){
@@ -1284,6 +1735,10 @@ function renderNodes(list){
   $("nodeCount").textContent = nodes.length + " decision nodes";
   treeOpenNodes = new Set(nodes.length ? [nodes[0].id] : []);
   treeOpenActions = new Set();
+  graphExpandedNodes = new Set(nodes.length ? [nodes[0].id] : []);
+  graphOpenCards = new Map();
+  graphView = null;
+  closeGraphCardPop();
   const tbody = $("nodes"); tbody.innerHTML = "";
   nodes.forEach(n=>{
     const tr = document.createElement("tr");
@@ -1299,6 +1754,7 @@ function renderNodes(list){
     tbody.appendChild(tr);
   });
   renderTree();
+  if(treeView === "graph") renderGraph();
 }
 
 let nodeData = null;
@@ -1435,6 +1891,7 @@ async function selectNode(id){
     detailView = "combos";
     classFilter = null;
     renderDetail();
+    if(treeView === "graph") renderGraph();
   }catch(e){
     nodeData = null;
     d.innerHTML = `<div class="err">${e.message}</div>`;
@@ -1463,8 +1920,15 @@ $("oopPick").onclick = ()=> openRangePicker("oop");
 $("ipPick").onclick = ()=> openRangePicker("ip");
 $("rangeOk").onclick = confirmRangePicker;
 $("rangeCancel").onclick = closeRangePicker;
-$("rangeClear").onclick = ()=>{ rangeSel = emptyRangeSel(); buildRangeGrid(); updateRangeStats(); };
-$("rangeAll").onclick = ()=>{ rangeSel = emptyRangeSel(); fillRangeSel(rangeSel); buildRangeGrid(); updateRangeStats(); };
+$("rangeClear").onclick = ()=>{ rangeSel = emptyRangeSel(); buildRangeGrid(); updateRangeStats(); setRangeSlider(0); };
+$("rangeAll").onclick = ()=>{ rangeSel = emptyRangeSel(); fillRangeSel(rangeSel); buildRangeGrid(); updateRangeStats(); setRangeSlider(100); };
+$("rangePct").addEventListener("input", (e)=>{
+  const pct = Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0));
+  rangeSel = selectRangeByPct(pct);
+  buildRangeGrid();
+  updateRangeStats();
+  setRangeSlider(pct);
+});
 $("rangeOverlay").addEventListener("mousedown", (e)=>{
   if(e.target === $("rangeOverlay")) closeRangePicker();
 });
@@ -1478,6 +1942,88 @@ document.addEventListener("keydown", (e)=>{
 document.querySelectorAll("#treeViewToggle button").forEach(b=>{
   b.onclick = ()=>{ treeView = b.dataset.tv; updateTreeView(); };
 });
+
+/* ---------- graph pan / zoom / toolbar ---------- */
+(function initGraphControls(){
+  const svg = $("graphSvg");
+  if(!svg) return;
+  let dragging = false, startX = 0, startY = 0, origX = 0, origY = 0;
+  const onMove = (e)=>{
+    if(!dragging || !graphView) return;
+    const dx = e.clientX - startX, dy = e.clientY - startY;
+    if(Math.abs(dx) + Math.abs(dy) > 3) graphDragged = true;
+    graphView.x = origX + dx; graphView.y = origY + dy;
+    applyGraphTransform(svg);
+  };
+  const onUp = ()=>{
+    if(!dragging) return;
+    dragging = false;
+    svg.classList.remove("grabbing");
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+  };
+  svg.addEventListener("pointerdown", (e)=>{
+    if(!graphView) return;
+    dragging = true; graphDragged = false;
+    startX = e.clientX; startY = e.clientY; origX = graphView.x; origY = graphView.y;
+    svg.classList.add("grabbing");
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  });
+  svg.addEventListener("wheel", (e)=>{
+    // Zoom only while Ctrl is held; otherwise let the page scroll normally.
+    if(!graphView || !e.ctrlKey) return;
+    e.preventDefault();
+    const rect = svg.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const k = Math.max(0.15, Math.min(2.5, graphView.k * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
+    graphView.x = mx - (mx - graphView.x) * (k / graphView.k);
+    graphView.y = my - (my - graphView.y) * (k / graphView.k);
+    graphView.k = k;
+    applyGraphTransform(svg);
+  }, {passive:false});
+  $("graphFit").onclick = ()=>{ graphView = null; renderGraph(); };
+  $("graphZoomIn").onclick = ()=> zoomGraph(1.15);
+  $("graphZoomOut").onclick = ()=> zoomGraph(1 / 1.15);
+  $("graphExpand").onclick = ()=>{ if(nodes.length){ closeGraphCardPop(); graphExpandedNodes.add((graphByNodeId.get(0) || nodes[0]).id); renderGraph(); } };
+  $("graphCollapse").onclick = ()=>{ graphExpandedNodes = new Set(); graphOpenCards = new Map(); closeGraphCardPop(); renderGraph(); };
+  $("graphSearch").addEventListener("keydown", (e)=>{
+    if(e.key !== "Enter") return;
+    const id = parseInt(String(e.target.value).replace(/[^0-9]/g, ""));
+    if(isNaN(id)) return;
+    if(!graphRevealNode(id)) $("graphInfo").textContent = `node #${id} not found`;
+  });
+  $("graphCardInput").addEventListener("keydown", (e)=>{
+    if(e.key !== "Enter") return;
+    e.preventDefault();
+    const key = graphPopChanceKey;
+    if(!key) return;
+    const val = e.target.value;
+    if(graphWriteCard(key, val, "add")){
+      e.target.value = "";
+      renderGraph();
+      openGraphCardPop(key, true);
+    } else {
+      const item = graphItemByKey.get(key);
+      $("graphCardHint").textContent = `Card not available here. Available: ${item ? item.cards.join(" ") : ""}`;
+    }
+  });
+  $("graphCardChips").addEventListener("click", (e)=>{
+    const b = e.target.closest("button[data-card]");
+    if(!b || !graphPopChanceKey) return;
+    const key = graphPopChanceKey;
+    graphWriteCard(key, b.dataset.card, "toggle");
+    renderGraph();
+    openGraphCardPop(key, true);
+  });
+  document.addEventListener("pointerdown", (e)=>{
+    const pop = $("graphCardPop");
+    if(!pop || pop.hidden) return;
+    if(pop.contains(e.target)) return;
+    if(e.target.closest && e.target.closest(".gchance")) return;
+    closeGraphCardPop();
+  }, true);
+})();
 
 $("glossaryOpen").onclick = ()=> openGlossary();
 $("glossaryClose").onclick = closeGlossary;

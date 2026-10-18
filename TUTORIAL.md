@@ -245,7 +245,7 @@ and keeps the partial result.
 
 ### 5.5 Strategy tree
 
-Two views, toggled with **Table | Tree**:
+Three views, toggled with **Table | Tree | Graph**:
 
 - **Table** — one row per decision node: street, board, actor, pot, frequency
   bar. Hover the bar for exact percentages.
@@ -254,6 +254,17 @@ Two views, toggled with **Table | Tree**:
   - expand an action to see the next decision node;
   - chance cards appear on the branch (`7h →`);
   - **end** means no further decision (fold or showdown).
+- **Graph** — node-link diagram of the same solution:
+  - each node shows street, board, actor, pot and a strategy bar;
+  - every action edge is labelled with its frequency and colored by action;
+  - chance nodes are collapsed into one box (`7 cards ▸`) — click it and type
+    (e.g. `7h`) or pick **one** card: only that runout branch opens, so the
+    diagram stays readable; add more cards one at a time if you want;
+  - click **+** on a node to expand it, click a node to open its hand detail;
+  - drag to pan, **Ctrl+scroll** to zoom, **Fit** recentres, **Expand root** /
+    **Collapse all** reset the view, the search box jumps to a node by `#id`;
+  - the graph is lazy (only expanded nodes are drawn), so it stays responsive
+    on flops with thousands of decision nodes.
 
 Every row is a decision node of the **same** solution. It is not a separate
 solution. A river spot with one bet size usually has only four decision nodes:

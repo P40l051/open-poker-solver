@@ -326,7 +326,19 @@ impl Tree {
                     next.street_bet[actor] += a.delta;
                     children.push(self.advance(next, depth + 1)?);
                 }
-                ActionKind::Bet | ActionKind::Raise => {
+                ActionKind::Bet => {
+                    next.stack[actor] -= a.delta;
+                    next.pot += a.delta;
+                    next.invested[actor] += a.delta;
+                    let prev = next.street_bet[actor];
+                    next.street_bet[actor] = a.amount;
+                    next.min_raise = (a.amount - prev).max(st.min_raise);
+                    // A bet does not consume a raise slot: `max_raises` counts
+                    // raises on top of the opening bet.
+                    next.checked = false;
+                    children.push(self.build_node(next, depth + 1)?);
+                }
+                ActionKind::Raise => {
                     next.stack[actor] -= a.delta;
                     next.pot += a.delta;
                     next.invested[actor] += a.delta;
@@ -512,6 +524,31 @@ mod tests {
                 assert_eq!(n.children.len(), 49, "turn fully enumerated");
             }
         }
+    }
+
+    #[test]
+    fn max_raises_counts_raises_not_bets() {
+        // Facing the opening bet, one raise must be available with max_raises=1.
+        let mut c = cfg("AhKd7c2s9h");
+        c.max_raises = 1;
+        let t = Tree::build(c).unwrap();
+        assert!(
+            t.nodes
+                .iter()
+                .any(|n| n.actions.iter().any(|a| a.kind == ActionKind::Raise)),
+            "max_raises=1 must allow a raise over the opening bet"
+        );
+
+        // max_raises=0 removes raises entirely.
+        let mut c0 = cfg("AhKd7c2s9h");
+        c0.max_raises = 0;
+        let t0 = Tree::build(c0).unwrap();
+        assert!(
+            !t0.nodes
+                .iter()
+                .any(|n| n.actions.iter().any(|a| a.kind == ActionKind::Raise)),
+            "max_raises=0 must not allow raises"
+        );
     }
 
     #[test]

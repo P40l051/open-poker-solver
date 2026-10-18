@@ -15,12 +15,12 @@ You can use it, study it, modify it and redistribute it.
 
 ## Download
 
-**Latest release: v0.3.0 — macOS universal (Apple Silicon + Intel)**
+**Latest release: v0.4.0 — macOS universal (Apple Silicon + Intel)**
 
-[**Download OPS-0.3.0-macos-universal.dmg**](https://github.com/P40l051/open-poker-solver/releases/latest/download/OPS-0.3.0-macos-universal.dmg)
+[**Download OPS-0.4.0-macos-universal.dmg**](https://github.com/P40l051/open-poker-solver/releases/latest/download/OPS-0.4.0-macos-universal.dmg)
 
 SHA-256 checksum:
-[`OPS-0.3.0-macos-universal.dmg.sha256`](https://github.com/P40l051/open-poker-solver/releases/latest/download/OPS-0.3.0-macos-universal.dmg.sha256)
+[`OPS-0.4.0-macos-universal.dmg.sha256`](https://github.com/P40l051/open-poker-solver/releases/latest/download/OPS-0.4.0-macos-universal.dmg.sha256)
 
 1. Double-click the DMG.
 2. Drag **OPS** into **Applications**.
@@ -213,7 +213,7 @@ keeps the partial result.
 
 ### 4.4 Strategy tree
 
-The **Strategy tree** panel has two views:
+The **Strategy tree** panel has three views:
 
 - **Table** — one row per decision node with street, board, actor, pot and a
   stacked frequency bar.
@@ -221,6 +221,13 @@ The **Strategy tree** panel has two views:
   percentages, then expand an action to see the next decision node. Chance
   cards appear on the branch (`7h →`). An action with no further decision shows
   **end**.
+- **Graph** — a node-link diagram of the same solution. Each node shows street,
+  board, actor and a strategy bar; every action edge is labelled with its
+  frequency. Chance nodes are collapsed into one box (`7 cards ▸`): click it and
+  type or pick **one** card to open only that runout branch, so the diagram does
+  not fan out. Click **+** on a node to expand it, click a node to open its hand
+  detail, drag to pan and **Ctrl+scroll** to zoom. The graph is lazy, so it stays
+  fast even when a solve has thousands of decision nodes.
 
 Important: every row is a decision node of the **same** solution, not a separate
 solution. A river spot with one bet size typically has only four decision nodes.
