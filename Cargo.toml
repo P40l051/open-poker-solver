@@ -1,0 +1,28 @@
+[package]
+name = "open-poker-solver"
+version = "0.2.0"
+edition = "2021"
+rust-version = "1.75"
+description = "OPS — Open Poker Solver: postflop CFR solver (turn/river exact, flop runout-sampled)"
+license = "MIT"
+
+[lib]
+name = "open_poker_solver"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ops"
+path = "src/bin/ops.rs"
+
+[[bin]]
+name = "ops-gui"
+path = "src/bin/ops_gui.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+opt-level = 2

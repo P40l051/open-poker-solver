@@ -1,0 +1,1463 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<title>OPS — Open Poker Solver</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --line:#2a3444;
+    --text:#e6edf3; --muted:#8b98a9; --accent:#4cc38a; --accent2:#58a6ff;
+    --warn:#f0883e; --bad:#f85149;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  header{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+  header h1{font-size:16px;margin:0;letter-spacing:.4px}
+  header .tag{font-size:11px;color:var(--muted);border:1px solid var(--line);padding:2px 8px;border-radius:999px}
+  header .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+  header .dot.ok{background:var(--accent)}
+  main{display:grid;grid-template-columns:340px 1fr;gap:18px;padding:18px;align-items:start}
+  @media(max-width:980px){main{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+  .panel h2{font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:0 0 12px}
+  label{display:block;font-size:11px;color:var(--muted);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.6px}
+  input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:7px;color:var(--text);padding:8px 10px;font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
+  input:focus,textarea:focus{outline:none;border-color:var(--accent2)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  button{background:var(--accent);color:#05130c;border:0;border-radius:8px;padding:10px 16px;font-weight:600;cursor:pointer}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
+  .actions{display:flex;gap:8px;margin-top:16px}
+  .hint{font-size:11px;color:var(--muted);margin-top:6px}
+  .help{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;flex:none;border:1px solid var(--line);border-radius:50%;background:var(--panel2);color:var(--muted);font:600 9px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;cursor:help;position:relative;vertical-align:middle;user-select:none;text-transform:none;letter-spacing:0}
+  .help:hover,.help:focus-visible{border-color:var(--accent2);color:var(--accent2);outline:none}
+  .helpTip{position:fixed;z-index:200;max-width:min(250px,calc(100vw - 20px));padding:8px 10px;border-radius:7px;background:#0b1018;border:1px solid var(--line);color:var(--text);font:400 11px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;text-align:left;white-space:normal;box-shadow:0 12px 30px rgba(0,0,0,.55);pointer-events:none}
+  .helpTip[hidden]{display:none}
+  .err{color:var(--bad);font-size:12px;margin-top:8px;white-space:pre-wrap}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px 12px}
+  .stat .k{font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted)}
+  .stat .v{font-size:18px;font-variant-numeric:tabular-nums;margin-top:2px}
+  .bar{height:6px;background:var(--panel2);border-radius:99px;overflow:hidden;border:1px solid var(--line)}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));width:0%;transition:width .25s}
+  .progress{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .progress span{font-size:12px;color:var(--muted);white-space:nowrap}
+  .nodes{max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:9px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{position:sticky;top:0;background:var(--panel);text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);padding:8px;border-bottom:1px solid var(--line)}
+  td{padding:7px 8px;border-bottom:1px solid rgba(42,52,68,.55);vertical-align:middle}
+  tr.node{cursor:pointer}
+  tr.node:hover{background:var(--panel2)}
+  tr.node.sel{background:#20304a}
+  .cards{display:inline-flex;gap:3px}
+  .card{display:inline-block;min-width:24px;text-align:center;padding:2px 3px;border-radius:4px;background:#f0f3f7;color:#10151c;font-weight:700;font-size:11px;font-family:ui-monospace,monospace}
+  .card.r{color:#c33131}.card.b{color:#1e6fd9}.card.g{color:#16794b}.card.k{color:#111}
+  .freq{display:flex;height:18px;border-radius:4px;overflow:hidden;min-width:120px;background:var(--panel2)}
+  .freq b{display:block;height:100%}
+  .freq b:nth-child(4n+1){background:#4cc38a}
+  .freq b:nth-child(4n+2){background:#58a6ff}
+  .freq b:nth-child(4n+3){background:#f0883e}
+  .freq b:nth-child(4n+4){background:#bc8cff}
+  .pill{display:inline-block;font-size:10px;padding:1px 6px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
+  .pill.oop{border-color:#3b6ea5;color:#7cb3ef}
+  .pill.ip{border-color:#3f7a5a;color:#6fd39b}
+  canvas{width:100%;height:130px;background:var(--panel2);border:1px solid var(--line);border-radius:9px}
+  .detail{margin-top:16px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .muted{color:var(--muted)}
+  .flex{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .sep{border:0;border-top:1px solid var(--line);margin:16px 0}
+  .warnbox{font-size:11.5px;color:var(--warn);margin-top:8px;white-space:pre-wrap;line-height:1.4}
+  .notebox{font-size:11.5px;color:var(--muted);margin-top:6px;white-space:pre-wrap;line-height:1.4}
+  tr.heroRow{background:rgba(76,195,138,.13)}
+  .badge{display:inline-block;font-size:10px;padding:1px 6px;border-radius:99px;background:rgba(76,195,138,.16);color:var(--accent);border:1px solid rgba(76,195,138,.35);margin-left:6px}
+
+  /* deck picker */
+  .boardRow{display:flex;gap:8px;align-items:stretch}
+  .boardRow input,.boardRow textarea{flex:1;min-width:0}
+  .boardRow .pickBtn{padding-top:0;padding-bottom:0}
+  .overlay{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(3,6,10,.72);backdrop-filter:blur(4px)}
+  .overlay.open{display:flex}
+  .modal{width:min(900px,100%);max-height:calc(100vh - 40px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;box-shadow:0 24px 70px rgba(0,0,0,.6)}
+  .modalHead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .modalHead h2{margin:0}
+  .slots{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 2px}
+  .slot{width:58px;height:78px;border:1px dashed var(--line);border-radius:9px;background:var(--panel2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:9px;letter-spacing:.5px;color:var(--muted);text-transform:uppercase;cursor:pointer;transition:border-color .15s,transform .12s}
+  .slot:disabled{cursor:default;opacity:.75}
+  .slot:not(:disabled):hover{border-color:var(--accent2)}
+  .slot .sl-rank{font:700 20px/1 ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:none}
+  .slot .sl-suit{font-size:16px;line-height:1}
+  .slot.filled{background:#f0f3f7;color:#10151c;border-style:solid;border-color:#c7d2df}
+  .slot.filled.r{color:#c33131}.slot.filled.b{color:#1e6fd9}.slot.filled.g{color:#16794b}
+  .deck{display:grid;grid-template-columns:repeat(13,minmax(0,1fr));gap:6px;margin-top:14px}
+  .dcard{position:relative;display:flex;flex-direction:column;align-items:center;gap:1px;padding:7px 0 5px;border:1px solid #c7d2df;border-radius:8px;background:#f0f3f7;color:#10151c;font:700 13px/1 ui-monospace,SFMono-Regular,Menlo,monospace;cursor:pointer;user-select:none;transition:transform .12s,border-color .12s,box-shadow .12s,opacity .12s}
+  .dcard .dsuit{font-size:11px;line-height:1}
+  .dcard.r{color:#c33131}.dcard.b{color:#1e6fd9}.dcard.g{color:#16794b}
+  @media(hover:hover){.dcard:hover:not(:disabled){transform:translateY(-2px);border-color:var(--accent2);box-shadow:0 6px 16px rgba(0,0,0,.35)}}
+  .dcard.sel{background:linear-gradient(180deg,#58a6ff,#4cc38a);border-color:#8fd0ff;color:#06131f;box-shadow:0 0 0 2px rgba(88,166,255,.35)}
+  .dcard.sel::after{content:attr(data-order);position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;border-radius:99px;background:#0d1117;color:#e6edf3;border:1px solid var(--accent2);font-size:9px;line-height:14px;text-align:center}
+  .dcard.used{opacity:.22;cursor:not-allowed;filter:grayscale(1)}
+  .modalFoot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+  .modalFoot .hint{margin:0}
+  .pickBtn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:linear-gradient(180deg,#1e2634,#171d27);color:var(--text);font:600 12px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;letter-spacing:.2px;white-space:nowrap;cursor:pointer;transition:border-color .15s,color .15s,background .15s,box-shadow .15s,transform .1s}
+  .pickBtn svg{width:14px;height:14px;flex:none;color:var(--accent2)}
+  .pickBtn:hover{border-color:rgba(88,166,255,.6);background:linear-gradient(180deg,#243049,#1a212f);box-shadow:0 0 0 3px rgba(88,166,255,.08);color:#cfe6ff}
+  .pickBtn:hover svg{color:#9ecdff}
+  .pickBtn:active{transform:translateY(1px)}
+  .matrix{display:grid;grid-template-columns:repeat(13,minmax(0,1fr));gap:4px;margin-top:14px;touch-action:none}
+  .mcell{aspect-ratio:1.12/1;border:1px solid var(--line);border-radius:6px;padding:0;background:var(--panel2);color:var(--muted);font:600 10.5px/1 ui-monospace,SFMono-Regular,Menlo,monospace;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;transition:background .1s,border-color .1s,color .1s}
+  .mcell.suited{background:#172234;color:#8fb8e8}
+  .mcell.offsuit{background:#1b2130;color:#93a0b2}
+  .mcell.pair{background:#22304a;color:#cfe0f5}
+  .mcell:hover{border-color:var(--accent2)}
+  .mcell.sel{background:linear-gradient(180deg,#58a6ff,#4cc38a);border-color:#8fd0ff;color:#06131f}
+  @media(max-width:640px){
+    .matrix{gap:3px}
+    .mcell{font-size:8px;border-radius:4px}
+  }
+
+  /* node detail: combos / classes */
+  .detailHead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .segmented{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:3px;gap:2px}
+  .segmented button{padding:4px 10px;font-size:11px;font-weight:600;background:transparent;color:var(--muted);border-radius:6px;border:0;cursor:pointer}
+  .segmented button.on{background:#243049;color:var(--text);box-shadow:inset 0 0 0 1px rgba(88,166,255,.35)}
+  .detailMeta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;padding:2px 8px;border-radius:99px;background:rgba(88,166,255,.12);border:1px solid rgba(88,166,255,.35);color:#9ecdff}
+  .chip button{background:none;border:0;color:inherit;padding:0;font-size:13px;line-height:1;cursor:pointer}
+  .stratCell{position:relative;aspect-ratio:1.12/1;border:1px solid rgba(42,52,68,.9);border-radius:6px;display:flex;align-items:center;justify-content:center;font:700 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#08111c;text-shadow:0 1px 0 rgba(255,255,255,.3);cursor:pointer;user-select:none;overflow:hidden}
+  .stratCell.dim{background:var(--panel2);color:var(--muted);text-shadow:none;cursor:default;border-style:dashed}
+  .stratCell:not(.dim):hover{outline:2px solid var(--accent2);outline-offset:1px}
+  .stratCell.hero{box-shadow:inset 0 0 0 2px var(--accent)}
+  .legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:10px;font-size:11px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:9px;height:9px;border-radius:3px;display:inline-block}
+  .legend b{color:var(--text);font-weight:600}
+  @media(max-width:640px){
+    .stratCell{font-size:8px;border-radius:4px}
+  }
+
+  /* indented strategy tree */
+  .treeWrap{margin-top:12px;max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:9px;background:var(--panel);padding:6px 8px}
+  .treeRow{display:flex;align-items:center;gap:8px;min-width:max-content;padding:3px 6px;border-radius:6px;font-size:12px;cursor:pointer}
+  .treeRow:hover{background:var(--panel2)}
+  .treeRow.sel{background:#20304a}
+  .treeToggle{width:18px;height:18px;flex:none;padding:0;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:4px;background:var(--panel2);color:var(--muted);font:600 10px/1 ui-monospace,monospace;cursor:pointer}
+  .treeToggle:hover:not(:disabled){border-color:var(--accent2);color:var(--accent2)}
+  .treeToggle.leaf{opacity:.25;cursor:default;border-color:transparent;background:transparent}
+  .treeToggle:disabled{opacity:.25}
+  .treeAction{padding-top:2px;padding-bottom:2px}
+  .treeAction .treeLabel{color:var(--text);font-size:11.5px}
+  .treeEdgeTag{font:600 10px/1 ui-monospace,monospace;padding:2px 5px;border-radius:4px;background:#f0f3f7;color:#10151c}
+  .treePct{min-width:46px;text-align:right;font:600 11px/1 ui-monospace,monospace;font-variant-numeric:tabular-nums;color:var(--muted)}
+  .treeNodeId{font:600 10.5px/1 ui-monospace,monospace;color:var(--muted);min-width:26px}
+  .treeStreet{text-transform:capitalize;color:var(--text);font-size:11.5px;min-width:38px}
+  .treeBet{margin-left:auto;flex:none}
+  .treeEnd{font-size:10px;color:var(--muted);border:1px dashed var(--line);border-radius:99px;padding:1px 6px}
+  .treeEmpty{padding:10px;color:var(--muted);font-size:12px}
+
+  /* glossary */
+  .glossaryModal{width:min(780px,100%)}
+  .glossaryList{display:grid;gap:10px;margin-top:14px;max-height:calc(100vh - 250px);overflow:auto;padding-right:4px}
+  .gterm{border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--panel2)}
+  .gterm.flash{animation:gflash 1.8s ease-out;border-color:var(--accent2)}
+  @keyframes gflash{0%{background:rgba(88,166,255,.28)}100%{background:var(--panel2)}}
+  .gtermHead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .gtermTitle{font-size:13px;font-weight:650;color:var(--text)}
+  .gtermTag{font-size:9.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:1px 6px}
+  .gtermBody{font-size:12px;line-height:1.5;color:var(--muted);margin-top:5px}
+  .gtermEx{font:11px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--accent2);margin-top:5px}
+  @media(max-width:640px){
+    .deck{gap:4px}
+    .dcard{padding:5px 0 4px;font-size:11px;border-radius:6px}
+    .dcard .dsuit{font-size:9px}
+    .slot{width:50px;height:68px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>OPS</h1><span class="tag">Open Poker Solver · CFR+</span>
+  <span style="flex:1"></span>
+  <span class="dot" id="health"></span><span class="muted" style="font-size:12px" id="healthText">connecting…</span>
+  <a href="/tutorial" target="_blank" style="color:var(--accent2);text-decoration:none;font-size:12px;margin-left:6px">Guide</a>
+  <button id="glossaryOpen" class="ghost" style="padding:4px 10px;font-size:12px;margin-left:6px">Glossary</button>
+  <button id="shutdown" class="ghost" style="padding:4px 10px;font-size:12px;margin-left:6px">Quit</button>
+</header>
+
+<main>
+  <section class="panel">
+    <h2 data-help="import">Import hand</h2>
+    <textarea id="hand" rows="6" placeholder="Paste a PokerStars hand history here…" spellcheck="false" style="font-size:11px"></textarea>
+    <div class="actions" style="margin-top:10px">
+      <button id="import" class="ghost" style="flex:1">Import hand</button>
+    </div>
+    <div class="err" id="importErr"></div>
+    <div class="notebox" id="importNote"></div>
+    <div class="warnbox" id="importWarn"></div>
+    <hr class="sep">
+    <h2>Spot</h2>
+    <label for="board" data-help="board">Board (flop / turn / river)</label>
+    <div class="boardRow">
+      <input id="board" class="mono" value="AhKd7c2s9h" spellcheck="false">
+      <button id="boardPick" class="pickBtn" type="button" title="Pick cards from the deck">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="11" height="15" rx="2"/><path d="M8 3.5h10A2.5 2.5 0 0 1 20.5 6v12"/><path d="M7 10h3M8.5 8.5v3"/></svg>
+        Deck
+      </button>
+    </div>
+    <div class="hint">Examples: <code>AhKd7c</code>, <code>AhKd7c2s</code>, <code>AhKd7c2s9h</code></div>
+
+    <label for="oop" data-help="oop">OOP range</label>
+    <div class="boardRow">
+      <textarea id="oop" rows="2" spellcheck="false">QQ+,AKs,AQo,KQs</textarea>
+      <button id="oopPick" class="pickBtn" type="button" title="Edit the OOP range on a 13×13 grid">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        Grid
+      </button>
+    </div>
+    <label for="ip" data-help="ip">IP range</label>
+    <div class="boardRow">
+      <textarea id="ip" rows="2" spellcheck="false">JJ+,AQs,KJs,QJs</textarea>
+      <button id="ipPick" class="pickBtn" type="button" title="Edit the IP range on a 13×13 grid">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        Grid
+      </button>
+    </div>
+    <div class="hint">AA, TT+, A2s+, T9s-76s, AKo, random, with optional :weight</div>
+
+    <div class="row">
+      <div><label for="pot" data-help="pot">Pot (chips)</label><input id="pot" type="number" value="20" min="0.1" step="0.5"></div>
+      <div><label for="stack" data-help="stack">Effective stack</label><input id="stack" type="number" value="80" min="1" step="1"></div>
+    </div>
+    <div class="row">
+      <div><label for="rake" data-help="rake">Rake %</label><input id="rake" type="number" value="5" min="0" max="20" step="0.5"></div>
+      <div><label for="rapecap" data-help="rake_cap">Rake cap (0 = none)</label><input id="rapecap" type="number" value="0" min="0" step="0.5"></div>
+    </div>
+
+    <div class="row3">
+      <div><label for="s0" data-help="bet_size">Flop sizes</label><input id="s0" class="mono" value="0.75" spellcheck="false"></div>
+      <div><label for="s1" data-help="bet_size">Turn sizes</label><input id="s1" class="mono" value="0.75" spellcheck="false"></div>
+      <div><label for="s2" data-help="bet_size">River sizes</label><input id="s2" class="mono" value="0.75" spellcheck="false"></div>
+    </div>
+
+    <div class="row3">
+      <div><label for="raises" data-help="max_raises">Max raises</label><input id="raises" type="number" value="1" min="0" max="4"></div>
+      <div><label for="runouts" data-help="runouts">River samples</label><input id="runouts" type="number" value="0" min="0" step="1"></div>
+      <div><label for="iters" data-help="iterations">Iterations</label><input id="iters" type="number" value="600" min="10" step="50"></div>
+    </div>
+    <div class="hint">River samples 0 = exact (turn/river). On a flop the solver samples 7 turn cards and 4 rivers by default.</div>
+
+    <div class="actions">
+      <button id="solve">Solve</button>
+      <button id="stop" class="ghost" disabled>Stop</button>
+    </div>
+    <div class="err" id="err"></div>
+  </section>
+
+  <section>
+    <div class="panel">
+      <div class="flex"><h2 style="margin:0" data-help="result">Result</h2><span class="muted mono" id="meta"></span></div>
+      <div class="progress" style="margin-top:14px">
+        <div class="bar" style="flex:1"><i id="bar"></i></div>
+        <span id="prog">idle</span>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="k" data-help="ev_oop">EV OOP</div><div class="v mono" id="evO">–</div></div>
+        <div class="stat"><div class="k" data-help="ev_ip">EV IP</div><div class="v mono" id="evI">–</div></div>
+        <div class="stat"><div class="k" data-help="exploitability">Exploitability</div><div class="v mono" id="expl">–</div></div>
+        <div class="stat"><div class="k" data-help="expl_pct">% of pot</div><div class="v mono" id="explPct">–</div></div>
+      </div>
+      <div class="legend" id="actionLegend" aria-label="Action color legend">
+        <span><i style="background:#4cc38a"></i><b>Check</b></span>
+        <span><i style="background:#58a6ff"></i><b>Bet</b></span>
+        <span><i style="background:#f0883e"></i><b>Fold</b></span>
+        <span><i style="background:#bc8cff"></i><b>Call</b></span>
+        <span><i style="background:#e3b341"></i><b>Raise</b></span>
+        <span class="muted">colors show the share of the range using each action</span>
+      </div>
+      <canvas id="chart" width="900" height="130" style="margin-top:14px"></canvas>
+    </div>
+
+    <div class="panel" style="margin-top:18px">
+      <div class="flex">
+        <h2 style="margin:0" data-help="tree">Strategy tree</h2>
+        <div style="display:flex;align-items:center;gap:12px">
+          <span class="muted" id="nodeCount"></span>
+          <div class="segmented" id="treeViewToggle">
+            <button type="button" data-tv="table" class="on">Table</button>
+            <button type="button" data-tv="tree">Tree</button>
+          </div>
+        </div>
+      </div>
+      <div class="nodes" id="nodesWrap" style="margin-top:12px">
+        <table>
+          <thead><tr><th style="width:64px">#</th><th>Street</th><th>Board</th><th>Actor</th><th>Pot</th><th data-help="strategy">Strategy</th></tr></thead>
+          <tbody id="nodes"></tbody>
+        </table>
+      </div>
+      <div class="treeWrap" id="treeWrap" style="display:none"></div>
+      <div class="detail" id="detail"></div>
+    </div>
+  </section>
+</main>
+
+<div class="overlay" id="deckOverlay" role="dialog" aria-modal="true" aria-labelledby="deckTitle">
+  <div class="modal">
+    <div class="modalHead">
+      <div>
+        <h2 id="deckTitle">Select the board</h2>
+        <div class="hint" style="margin-top:2px">Click cards: the first three make the flop, then turn and river. Click a selected card to remove it.</div>
+      </div>
+      <span class="muted mono" id="deckCount" style="white-space:nowrap"></span>
+    </div>
+    <div class="slots" id="deckSlots"></div>
+    <div class="deck" id="deck"></div>
+    <div class="modalFoot">
+      <span class="hint" id="deckNote"></span>
+      <div style="display:flex;gap:8px">
+        <button id="deckClear" class="ghost" type="button">Clear</button>
+        <button id="deckCancel" class="ghost" type="button">Cancel</button>
+        <button id="deckOk" type="button">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="rangeOverlay" role="dialog" aria-modal="true" aria-labelledby="rangeTitle">
+  <div class="modal">
+    <div class="modalHead">
+      <div>
+        <h2 id="rangeTitle">Range</h2>
+        <div class="hint" style="margin-top:2px">Drag to select. Diagonal = pairs, above = suited, below = offsuit.</div>
+      </div>
+      <span class="muted mono" id="rangeStats" style="white-space:nowrap"></span>
+    </div>
+    <div class="matrix" id="rangeGrid"></div>
+    <div class="modalFoot">
+      <span class="hint">Row = first card · column = second card</span>
+      <div style="display:flex;gap:8px">
+        <button id="rangeClear" class="ghost" type="button">Clear</button>
+        <button id="rangeAll" class="ghost" type="button">All</button>
+        <button id="rangeCancel" class="ghost" type="button">Cancel</button>
+        <button id="rangeOk" type="button">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="glossaryOverlay" role="dialog" aria-modal="true" aria-labelledby="glossaryTitle">
+  <div class="modal glossaryModal">
+    <div class="modalHead">
+      <div style="flex:1">
+        <h2 id="glossaryTitle">Glossary</h2>
+        <div class="hint" style="margin-top:2px">Poker and solver terms in plain English.</div>
+      </div>
+      <button id="glossaryClose" class="ghost" type="button">Close</button>
+    </div>
+    <input id="glossarySearch" class="mono" placeholder="Search terms…" spellcheck="false" style="margin-top:14px">
+    <div class="glossaryList" id="glossaryList"></div>
+  </div>
+</div>
+
+<div class="helpTip" id="helpTip" role="tooltip" hidden></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let jobId = null, poll = null, nodes = [];
+let treeView = "table";
+let treeOpenNodes = new Set([0]);
+let treeOpenActions = new Set();
+const SUITS = {c:"k", d:"b", h:"r", s:"g"};
+const ACTION_STYLE = {check:"#4cc38a", bet:"#58a6ff", fold:"#f0883e", call:"#bc8cff", raise:"#e3b341"};
+
+function actionColor(label){
+  const kind = String(label || "").trim().toLowerCase().split(/\s+/)[0];
+  return ACTION_STYLE[kind] || "#8b98a9";
+}
+
+const HELP = {
+  import: {
+    title: "Import hand", tag: "workflow",
+    short: "Paste a PokerStars hand history to fill board, pot, stack and sizes.",
+    long: "Paste one PokerStars hand. OPS fills the board of the analysed street, pot and effective stack in big blinds, the players (OOP/IP), and the bet sizes used.",
+    example: "Then review ranges: they are not derived from a single hand."
+  },
+  board: {
+    title: "Board", tag: "cards",
+    short: "Community cards: 3 flop, 4 turn, 5 river.",
+    long: "The public cards for the spot. Use 3, 4 or 5 cards. The street is inferred from the number of cards: 3 = flop, 4 = turn, 5 = river.",
+    example: "AhKd7c · AhKd7c2s · AhKd7c2s9h"
+  },
+  oop: {
+    title: "OOP range", tag: "position",
+    short: "Hands of the player out of position — first to act.",
+    long: "Out of position (OOP) acts first on every postflop street. The range is the set of hands that player can hold at the start of the solve. It is not one hand.",
+    example: "BB in a BTN vs BB pot."
+  },
+  ip: {
+    title: "IP range", tag: "position",
+    short: "Hands of the player in position — acts second.",
+    long: "In position (IP) acts second on every postflop street, after seeing OOP's action. Its range is the set of hands it can hold at the start of the solve.",
+    example: "BTN in a BTN vs BB pot."
+  },
+  range: {
+    title: "Range", tag: "core",
+    short: "The set of hands a player can have — not a single hand.",
+    long: "A range is a probability distribution over many two-card combos. The solver optimises the whole range together. Written with shorthand such as AA, TT+, A2s+, T9s-76s, AKo, random, with optional :weight.",
+    example: "QQ+,AKs,AQo = QQ, KK, AA plus AKs and AQo."
+  },
+  combo: {
+    title: "Combo", tag: "core",
+    short: "One concrete two-card holding.",
+    long: "A combo is a specific pair of cards, such as AhKh. Each hand class like AKs contains several combos (four suited combos for AKs).",
+    example: "AhKh and AsKs are different combos of the same class AKs."
+  },
+  pot: {
+    title: "Pot", tag: "betting",
+    short: "Chips already in the middle when the solve starts.",
+    long: "The pot at the start of the analysed street. Bet sizes are fractions of this pot.",
+    example: "Pot 20, bet 0.75 → bet 15 chips."
+  },
+  stack: {
+    title: "Effective stack", tag: "betting",
+    short: "Chips behind for the shorter player.",
+    long: "The smaller remaining stack. It caps all betting: an oversized bet becomes an all-in.",
+    example: "Pot 20, stack 80."
+  },
+  rake: {
+    title: "Rake", tag: "betting",
+    short: "Percentage taken from the final pot.",
+    long: "Rake is removed from the pot when the hand ends. It reduces the value of winning and changes EV.",
+    example: "5% of a 20 chip pot = 1 chip."
+  },
+  rake_cap: {
+    title: "Rake cap", tag: "betting",
+    short: "Maximum rake in chips; 0 means uncapped.",
+    long: "Many cash games cap the rake at a fixed number of big blinds. Set 0 to use a pure percentage.",
+    example: "Rake 5%, cap 2 → rake never exceeds 2 chips."
+  },
+  bet_size: {
+    title: "Bet size", tag: "betting",
+    short: "Bet as a fraction of the pot.",
+    long: "One or more sizes per street, comma separated. 0.75 means 75% of the pot. The solver may mix between the sizes.",
+    example: "0.33,0.75,1.25"
+  },
+  max_raises: {
+    title: "Max raises", tag: "betting",
+    short: "How many raises are allowed on a street.",
+    long: "Limits the raise branches. 0 removes raising. Higher values make the tree larger and slower.",
+    example: "1 = bet, raise and calls/folds only."
+  },
+  runouts: {
+    title: "Runout samples", tag: "solver",
+    short: "Flop approximation. 0 = exact on turn and river.",
+    long: "On a flop, solving every turn and river is expensive, so OPS samples turn and river cards. Turn and river solves are exact when this is 0. More samples = more accurate but slower.",
+    example: "0 exact · 6 sampled rivers per turn."
+  },
+  iterations: {
+    title: "Iterations", tag: "solver",
+    short: "Refinement steps: more is more accurate, but slower.",
+    long: "Each iteration improves the strategy. The solver stops after this many steps or earlier if the target exploitability is reached.",
+    example: "600 iterations is a common starting point."
+  },
+  result: {
+    title: "Result", tag: "result",
+    short: "Summary of the solved equilibrium.",
+    long: "EV, exploitability and the strategy tree for the spot you solved. All values are computed from the ranges and betting tree you provided.",
+    example: "Compare exploitability across iterations in the chart."
+  },
+  ev_oop: {
+    title: "EV OOP", tag: "result",
+    short: "Average chips OOP wins with the solved strategy.",
+    long: "Expected value for the out-of-position player, in chips, given both ranges and the whole tree. EV OOP + EV IP ≈ pot minus rake.",
+    example: "+9.42 means OOP wins 9.42 chips on average."
+  },
+  ev_ip: {
+    title: "EV IP", tag: "result",
+    short: "Average chips IP wins with the solved strategy.",
+    long: "Expected value for the in-position player, in chips, given both ranges and the whole tree.",
+    example: "+10.58 means IP wins 10.58 chips on average."
+  },
+  exploitability: {
+    title: "Exploitability", tag: "result",
+    short: "Distance from optimal play. Lower is better.",
+    long: "How many chips an opponent could gain by deviating from the strategy. A value near zero means the strategy is close to equilibrium. Shown in chips and as a percentage of the pot.",
+    example: "0.05% pot is excellent."
+  },
+  expl_pct: {
+    title: "% of pot", tag: "result",
+    short: "Exploitability relative to the pot size.",
+    long: "Exploitability divided by the pot. Useful to compare spots with different pot sizes. Under 0.5% of pot is usually very good.",
+    example: "0.05% pot = almost exact equilibrium."
+  },
+  strategy: {
+    title: "Strategy", tag: "result",
+    short: "The action mix for the acting range at a node.",
+    long: "Percentages are the share of the acting player's range that should use each action at that decision node. They are not win probabilities and they add up to about 100%.",
+    example: "check 62% / bet 38%."
+  },
+  frequency: {
+    title: "Frequency", tag: "result",
+    short: "Share of the range using an action.",
+    long: "At each node, frequencies describe how often each action is used across all combos that reach that node, weighted by range probability.",
+    example: "bet 38% means 38% of the range bets."
+  },
+  node: {
+    title: "Node", tag: "tree",
+    short: "One decision point in the strategy tree.",
+    long: "A node is a specific situation: street, board, actor and pot. One solve contains many nodes. Each node has its own strategy; a node is not a separate solution.",
+    example: "River, OOP, pot 20 → check or bet."
+  },
+  tree: {
+    title: "Strategy tree", tag: "tree",
+    short: "Every row is a decision node of the same solution — not a separate solution.",
+    long: "The tree maps every decision point and every branch. Expand a node to see its actions with their frequencies. Chance cards dealt between streets appear on the branch.",
+    example: "River with one bet size usually has only four decision nodes."
+  },
+  blocker: {
+    title: "Blocker", tag: "core",
+    short: "A card in your hand that removes opponent combos.",
+    long: "Holding a card makes combos containing that card impossible for the opponent. This changes how often you can bluff or value bet.",
+    example: "Holding Ah removes all opponent combos with Ah."
+  },
+  check: {
+    title: "Check", tag: "action",
+    short: "Pass action: no chips are added.",
+    long: "Check is available when there is no bet to call. It ends your turn and passes the action."
+  },
+  bet: {
+    title: "Bet", tag: "action",
+    short: "Put chips into the pot.",
+    long: "A bet is the first aggressive action on a street. Size is shown as a fraction of the pot in the tree and in chips in the labels."
+  },
+  fold: {
+    title: "Fold", tag: "action",
+    short: "Give up the hand and the pot.",
+    long: "Folding ends the hand immediately. It is available when facing a bet or a raise."
+  },
+  call: {
+    title: "Call", tag: "action",
+    short: "Match the current bet.",
+    long: "Calling adds exactly the chips needed to match the bet and continues the hand, usually to a showdown on the river."
+  },
+  raise: {
+    title: "Raise", tag: "action",
+    short: "Increase the bet already on the table.",
+    long: "Raising puts in more chips than the current bet. The tree limits how many raises are allowed on a street."
+  },
+  equity: {
+    title: "Equity", tag: "core",
+    short: "Chance of winning the pot at showdown.",
+    long: "Equity is the share of the pot a hand wins on average if all remaining cards are dealt. It is not the same as EV, which includes betting and folds.",
+    example: "A flush draw can have 35% equity but very different EV."
+  }
+};
+
+function escHtml(s){
+  return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+function renderGlossary(filter){
+  const list = $("glossaryList");
+  const q = String(filter || "").trim().toLowerCase();
+  const items = Object.entries(HELP)
+    .sort((a, b)=> a[1].title.localeCompare(b[1].title))
+    .filter(([key, e])=>{
+      if(!q) return true;
+      const hay = [key, e.title, e.tag, e.short, e.long, e.example || ""].join(" ").toLowerCase();
+      return hay.includes(q);
+    });
+  list.innerHTML = items.length
+    ? items.map(([key, e])=>`
+      <div class="gterm" id="g-${key}" data-key="${key}">
+        <div class="gtermHead"><span class="gtermTitle">${e.title}</span>${e.tag ? `<span class="gtermTag">${e.tag}</span>` : ""}</div>
+        <div class="gtermBody">${e.long}</div>
+        ${e.example ? `<div class="gtermEx">${e.example}</div>` : ""}
+      </div>`).join("")
+    : `<div class="muted" style="font-size:12px">No terms match “${escHtml(filter)}”.</div>`;
+}
+
+function openGlossary(term){
+  $("glossarySearch").value = "";
+  renderGlossary("");
+  $("glossaryOverlay").classList.add("open");
+  document.body.style.overflow = "hidden";
+  if(term){
+    const el = $("g-" + term);
+    if(el){
+      el.classList.add("flash");
+      el.scrollIntoView({block:"center"});
+    }
+  } else {
+    setTimeout(()=>$("glossarySearch").focus(), 30);
+  }
+}
+
+function closeGlossary(){
+  $("glossaryOverlay").classList.remove("open");
+  document.body.style.overflow = "";
+}
+
+function showHelpTip(icon){
+  const el = $("helpTip");
+  const text = icon.dataset.tip || "";
+  if(!text) return;
+  el.textContent = text;
+  el.hidden = false;
+  el.style.left = "0px";
+  el.style.top = "0px";
+  const r = icon.getBoundingClientRect();
+  const t = el.getBoundingClientRect();
+  const m = 10;
+  let left = r.left + r.width / 2 - t.width / 2;
+  left = Math.max(m, Math.min(left, window.innerWidth - t.width - m));
+  let top = r.bottom + 7;
+  if(top + t.height > window.innerHeight - m) top = r.top - t.height - 7;
+  top = Math.max(m, Math.min(top, window.innerHeight - t.height - m));
+  el.style.left = left + "px";
+  el.style.top = top + "px";
+  icon.setAttribute("aria-describedby", "helpTip");
+}
+
+function hideHelpTip(icon){
+  const el = $("helpTip");
+  if(el) el.hidden = true;
+  if(icon) icon.removeAttribute("aria-describedby");
+}
+
+function installHelp(){
+  document.querySelectorAll("[data-help]").forEach(target=>{
+    const key = target.dataset.help;
+    const e = HELP[key];
+    if(!e || target.querySelector(".help")) return;
+    const icon = document.createElement("span");
+    icon.className = "help";
+    icon.tabIndex = 0;
+    icon.setAttribute("role", "button");
+    icon.setAttribute("aria-label", "Help: " + e.title);
+    icon.dataset.tip = e.short;
+    icon.dataset.term = key;
+    icon.textContent = "?";
+    const open = (ev)=>{ hideHelpTip(icon); ev.preventDefault(); ev.stopPropagation(); openGlossary(key); };
+    icon.addEventListener("click", open);
+    icon.addEventListener("pointerenter", ()=> showHelpTip(icon));
+    icon.addEventListener("pointerleave", ()=> hideHelpTip(icon));
+    icon.addEventListener("focus", ()=> showHelpTip(icon));
+    icon.addEventListener("blur", ()=> hideHelpTip(icon));
+    icon.addEventListener("keydown", (ev)=>{
+      if(ev.key === "Enter" || ev.key === " "){ open(ev); }
+    });
+    target.appendChild(document.createTextNode(" "));
+    target.appendChild(icon);
+  });
+}
+
+function cardSpans(text){
+  if(!text) return "";
+  const parts = text.match(/../g) || [];
+  return `<span class="cards">${parts.map(p=>`<span class="card ${SUITS[p[1]]||""}">${p[0].toUpperCase()}${p[1]}</span>`).join("")}</span>`;
+}
+function pct(x){ return (x*100).toFixed(1)+"%"; }
+function chips(x){ return (x>=0?"+":"") + x.toFixed(3); }
+
+async function health(){
+  try{
+    const r = await fetch("/api/health");
+    $("health").classList.add("ok"); $("healthText").textContent = "local engine ready";
+  }catch(e){ $("healthText").textContent = "offline"; }
+}
+
+function parseSizes(v){
+  return v.split(",").map(s=>parseFloat(s.trim())).filter(x=>!isNaN(x) && x>0);
+}
+
+function config(){
+  const board = $("board").value.trim();
+  const cards = board.replace(/[^A-Za-z0-9]/g,"").length/2;
+  const flop = parseSizes($("s0").value);
+  const turn = parseSizes($("s1").value);
+  const river = parseSizes($("s2").value);
+  // The first solved street is the one matching the board length.
+  const sizes = cards >= 5 ? [river] : cards === 4 ? [turn, river] : [flop, turn, river];
+  return {
+    board,
+    oop_range: $("oop").value.trim(),
+    ip_range: $("ip").value.trim(),
+    pot: parseFloat($("pot").value),
+    stack: parseFloat($("stack").value),
+    bet_sizes: sizes,
+    max_raises: parseInt($("raises").value||"1"),
+    rake_pct: parseFloat($("rake").value||"0") / 100,
+    rake_cap: parseFloat($("rapecap").value||"0"),
+    runout_samples: parseInt($("runouts").value||"0"),
+    iterations: parseInt($("iters").value||"600"),
+    check_every: 25,
+    target_exploitability: 0
+  };
+}
+
+let heroCards = [];
+
+/* ---------- deck picker ---------- */
+const RANK_ORDER = ["A","K","Q","J","T","9","8","7","6","5","4","3","2"];
+const DECK_SUITS = [
+  {c:"s", sym:"♠", cls:"k"},
+  {c:"h", sym:"♥", cls:"r"},
+  {c:"d", sym:"♦", cls:"b"},
+  {c:"c", sym:"♣", cls:"g"},
+];
+const SLOT_LABELS = ["Flop","Flop","Flop","Turn","River"];
+let boardPick = [];
+
+function normalizeCards(text){
+  const raw = String(text||"").replace(/[^A-Za-z0-9]/g,"");
+  const out = [];
+  for(let i=0; i+1<raw.length; i+=2){
+    const r = raw[i].toUpperCase(), s = raw[i+1].toLowerCase();
+    if("23456789TJQKA".includes(r) && "cdhs".includes(s)) out.push(r+s);
+  }
+  return out;
+}
+
+function openBoardPicker(){
+  boardPick = normalizeCards($("board").value).slice(0,5);
+  renderBoardPicker();
+  $("deckOverlay").classList.add("open");
+  document.body.style.overflow = "hidden";
+  setTimeout(()=>$("deckOk").focus(), 30);
+}
+
+function closeBoardPicker(){
+  $("deckOverlay").classList.remove("open");
+  document.body.style.overflow = "";
+}
+
+function toggleBoardCard(code){
+  const i = boardPick.indexOf(code);
+  if(i >= 0) boardPick.splice(i,1);
+  else if(boardPick.length < 5) boardPick.push(code);
+  else return;
+  renderBoardPicker();
+}
+
+function renderBoardPicker(){
+  const hero = new Set(normalizeCards((heroCards||[]).join("")));
+
+  const slots = $("deckSlots");
+  slots.innerHTML = "";
+  for(let i=0; i<5; i++){
+    const c = boardPick[i];
+    const el = document.createElement("button");
+    el.type = "button";
+    el.disabled = !c;
+    el.className = "slot" + (c ? " filled " + DECK_SUITS.find(s=>s.c===c[1]).cls : "");
+    el.title = c ? "Remove " + c : SLOT_LABELS[i];
+    el.innerHTML = c
+      ? `<span class="sl-rank">${c[0]}</span><span class="sl-suit">${DECK_SUITS.find(s=>s.c===c[1]).sym}</span><span>${SLOT_LABELS[i]}</span>`
+      : `<span class="sl-rank" style="opacity:.3">–</span><span>${SLOT_LABELS[i]}</span>`;
+    if(c) el.onclick = ()=>{ boardPick.splice(i,1); renderBoardPicker(); };
+    slots.appendChild(el);
+  }
+
+  const deck = $("deck");
+  deck.innerHTML = "";
+  DECK_SUITS.forEach(su=>{
+    RANK_ORDER.forEach(r=>{
+      const code = r + su.c;
+      const order = boardPick.indexOf(code);
+      const isHero = hero.has(code);
+      const b = document.createElement("button");
+      b.type = "button";
+      b.disabled = isHero;
+      b.className = "dcard " + su.cls + (order>=0 ? " sel" : "") + (isHero ? " used" : "");
+      b.dataset.card = code;
+      if(order>=0) b.dataset.order = order + 1;
+      b.title = isHero ? code + " · hero card" : order>=0 ? "Remove " + code : "Add " + code;
+      b.innerHTML = `<span>${r}</span><span class="dsuit">${su.sym}</span>`;
+      b.onclick = ()=> toggleBoardCard(code);
+      deck.appendChild(b);
+    });
+  });
+
+  const n = boardPick.length;
+  $("deckOk").disabled = n < 3 || n > 5;
+  $("deckCount").textContent = n < 3
+    ? `${n}/5 · pick at least 3 cards`
+    : `${n}/5 · ${boardPick.join(" ")}`;
+  $("deckNote").textContent = hero.size
+    ? "Hero cards excluded: " + [...hero].join(" ")
+    : "3, 4 o 5 carte";
+}
+
+function confirmBoardPicker(){
+  if(boardPick.length < 3 || boardPick.length > 5) return;
+  $("board").value = boardPick.join("");
+  closeBoardPicker();
+}
+
+/* ---------- range picker ---------- */
+const RANK_CHARS_ASC = "23456789TJQKA";
+let rangeTarget = "oop";
+let rangeSel = null;
+let rangePaint = null;
+let rangeCellEls = {};
+
+function rankIdx(ch){ return RANK_CHARS_ASC.indexOf(String(ch||"").toUpperCase()); }
+function rankChar(i){ return RANK_CHARS_ASC[i]; }
+
+function emptyRangeSel(){
+  return {pairs:new Set(), suited:new Set(), offsuit:new Set()};
+}
+
+function markRangeHand(sel, hi, lo, kind){
+  if(hi === lo){ sel.pairs.add(hi); return; }
+  const key = hi + "-" + lo;
+  if(kind === "s") sel.suited.add(key);
+  else if(kind === "o") sel.offsuit.add(key);
+  else { sel.suited.add(key); sel.offsuit.add(key); }
+}
+
+function parseHandCore(s){
+  const b = String(s||"").trim();
+  if(b.length < 2) return null;
+  const r1 = rankIdx(b[0]), r2 = rankIdx(b[1]);
+  if(r1 < 0 || r2 < 0) return null;
+  const suf = (b[2]||"").toLowerCase();
+  let kind = suf === "s" ? "s" : suf === "o" ? "o" : "b";
+  if(r1 === r2) kind = "p";
+  return {hi:Math.max(r1,r2), lo:Math.min(r1,r2), kind};
+}
+
+function expandHandToken(token){
+  const plus = token.endsWith("+");
+  const body = plus ? token.slice(0,-1) : token;
+  const out = [];
+  if(body.includes("-")){
+    const [ls, rs] = body.split("-");
+    const a = parseHandCore(ls), b = parseHandCore(rs);
+    if(!a || !b || a.kind !== b.kind) return out;
+    if(a.hi === a.lo && b.hi === b.lo){
+      for(let r=Math.min(a.hi,b.hi); r<=Math.max(a.hi,b.hi); r++) out.push({hi:r, lo:r, kind:"p"});
+    } else if(a.hi === b.hi){
+      for(let l=Math.min(a.lo,b.lo); l<=Math.max(a.lo,b.lo); l++) out.push({hi:a.hi, lo:l, kind:a.kind});
+    } else if(a.hi - a.lo === b.hi - b.lo){
+      const gap = a.hi - a.lo;
+      for(let h=Math.min(a.hi,b.hi); h<=Math.max(a.hi,b.hi); h++) out.push({hi:h, lo:h-gap, kind:a.kind});
+    }
+    return out;
+  }
+  const c = parseHandCore(body);
+  if(!c) return out;
+  if(plus){
+    if(c.hi === c.lo){
+      for(let r=c.hi; r<=12; r++) out.push({hi:r, lo:r, kind:"p"});
+    } else if(c.hi === 12){
+      for(let l=c.lo; l<=11; l++) out.push({hi:12, lo:l, kind:c.kind});
+    } else {
+      const gap = c.hi - c.lo;
+      for(let h=c.hi; h<=12; h++) out.push({hi:h, lo:h-gap, kind:c.kind});
+    }
+  } else out.push(c);
+  return out;
+}
+
+function fillRangeSel(sel){
+  for(let r=0; r<=12; r++) sel.pairs.add(r);
+  for(let hi=1; hi<=12; hi++)
+    for(let lo=0; lo<hi; lo++){ sel.suited.add(hi+"-"+lo); sel.offsuit.add(hi+"-"+lo); }
+}
+
+function parseRangeText(text){
+  const sel = emptyRangeSel();
+  String(text||"").split(",").forEach(raw=>{
+    let t = raw.trim();
+    if(!t) return;
+    const ci = t.lastIndexOf(":");
+    if(ci > 0){
+      const w = parseFloat(t.slice(ci+1));
+      if(isFinite(w) && w <= 0) return;
+      t = t.slice(0,ci).trim();
+    }
+    if(/^(random|any|\*|100%)$/i.test(t)){ fillRangeSel(sel); return; }
+    expandHandToken(t).forEach(h=> markRangeHand(sel, h.hi, h.lo, h.kind));
+  });
+  return sel;
+}
+
+function rangeToText(sel){
+  if(sel.pairs.size === 13 && sel.suited.size === 78 && sel.offsuit.size === 78) return "random";
+  const parts = [];
+  const pairName = (r)=> rankChar(r) + rankChar(r);
+
+  const pr = [...sel.pairs].sort((a,b)=>b-a);
+  let i = 0;
+  while(i < pr.length){
+    let j = i;
+    while(j+1 < pr.length && pr[j+1] === pr[j]-1) j++;
+    if(i === j) parts.push(pairName(pr[i]));
+    else if(pr[i] === 12) parts.push(pairName(pr[j]) + "+");
+    else parts.push(pairName(pr[i]) + "-" + pairName(pr[j]));
+    i = j+1;
+  }
+
+  [["suited","s"], ["offsuit","o"]].forEach(([key, suf])=>{
+    const byHi = new Map();
+    sel[key].forEach(k=>{
+      const [h,l] = k.split("-").map(Number);
+      if(!byHi.has(h)) byHi.set(h, []);
+      byHi.get(h).push(l);
+    });
+    [...byHi.keys()].sort((a,b)=>b-a).forEach(hi=>{
+      const los = [...new Set(byHi.get(hi))].sort((a,b)=>b-a);
+      let p = 0;
+      while(p < los.length){
+        let q = p;
+        while(q+1 < los.length && los[q+1] === los[q]-1) q++;
+        const hiLo = los[p], loLo = los[q];
+        const H = rankChar(hi);
+        if(hiLo === loLo) parts.push(H + rankChar(loLo) + suf);
+        else if(hi === 12 && hiLo === 11) parts.push("A" + rankChar(loLo) + suf + "+");
+        else parts.push(H + rankChar(hiLo) + suf + "-" + H + rankChar(loLo) + suf);
+        p = q+1;
+      }
+    });
+  });
+  return parts.join(",");
+}
+
+function rangeCellSelected(cell){
+  if(cell.kind === "p") return rangeSel.pairs.has(cell.hi);
+  const key = cell.hi + "-" + cell.lo;
+  return cell.kind === "s" ? rangeSel.suited.has(key) : rangeSel.offsuit.has(key);
+}
+
+function rangeCombos(sel){
+  return sel.pairs.size*6 + sel.suited.size*4 + sel.offsuit.size*12;
+}
+
+function updateRangeStats(){
+  const combos = rangeCombos(rangeSel);
+  const classes = rangeSel.pairs.size + rangeSel.suited.size + rangeSel.offsuit.size;
+  const pct = (combos / 1326 * 100);
+  $("rangeStats").textContent = `${combos} combos · ${pct.toFixed(1)}% · ${classes} hand classes`;
+  $("rangeOk").disabled = classes === 0;
+}
+
+function paintRangeCell(cell, on){
+  if(cell.kind === "p"){
+    if(on) rangeSel.pairs.add(cell.hi); else rangeSel.pairs.delete(cell.hi);
+  } else {
+    const key = cell.hi + "-" + cell.lo;
+    const set = cell.kind === "s" ? rangeSel.suited : rangeSel.offsuit;
+    if(on) set.add(key); else set.delete(key);
+  }
+  const el = rangeCellEls[cell.kind + cell.hi + "-" + cell.lo];
+  if(el) el.classList.toggle("sel", on);
+  updateRangeStats();
+}
+
+function buildRangeGrid(){
+  const grid = $("rangeGrid");
+  grid.innerHTML = "";
+  rangeCellEls = {};
+  RANK_ORDER.forEach((rRow, i)=>{
+    RANK_ORDER.forEach((rCol, j)=>{
+      let cell;
+      if(i === j) cell = {kind:"p", hi:rankIdx(rRow), lo:rankIdx(rRow)};
+      else if(i < j) cell = {kind:"s", hi:rankIdx(rRow), lo:rankIdx(rCol)};
+      else cell = {kind:"o", hi:rankIdx(rCol), lo:rankIdx(rRow)};
+
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "mcell " + (cell.kind === "p" ? "pair" : cell.kind === "s" ? "suited" : "offsuit")
+        + (rangeCellSelected(cell) ? " sel" : "");
+      b.textContent = cell.kind === "p"
+        ? rRow + rRow
+        : cell.kind === "s" ? rRow + rCol + "s" : rCol + rRow + "o";
+      b.title = b.textContent;
+      b.addEventListener("pointerdown", (e)=>{
+        e.preventDefault();
+        if(b.hasPointerCapture && b.hasPointerCapture(e.pointerId)) b.releasePointerCapture(e.pointerId);
+        rangePaint = !rangeCellSelected(cell);
+        paintRangeCell(cell, rangePaint);
+      });
+      b.addEventListener("pointerenter", ()=>{
+        if(rangePaint !== null) paintRangeCell(cell, rangePaint);
+      });
+      rangeCellEls[cell.kind + cell.hi + "-" + cell.lo] = b;
+      grid.appendChild(b);
+    });
+  });
+}
+
+function openRangePicker(target){
+  rangeTarget = target;
+  rangeSel = parseRangeText($(target).value);
+  $("rangeTitle").textContent = target === "oop" ? "Range OOP" : "Range IP";
+  buildRangeGrid();
+  updateRangeStats();
+  $("rangeOverlay").classList.add("open");
+  document.body.style.overflow = "hidden";
+  setTimeout(()=>$("rangeOk").focus(), 30);
+}
+
+function closeRangePicker(){
+  rangePaint = null;
+  $("rangeOverlay").classList.remove("open");
+  document.body.style.overflow = "";
+}
+
+function confirmRangePicker(){
+  if(rangeCombos(rangeSel) <= 0) return;
+  $(rangeTarget).value = rangeToText(rangeSel);
+  closeRangePicker();
+}
+
+
+async function importHand(){
+  clearInterval(poll); poll = null;
+  $("importErr").textContent = ""; $("importWarn").textContent = ""; $("importNote").textContent = "";
+  $("import").disabled = true;
+  try{
+    const r = await fetch("/api/import", {
+      method:"POST", headers:{"content-type":"application/json"},
+      body: JSON.stringify({text: $("hand").value})
+    });
+    const j = await r.json();
+    if(!r.ok || j.error) throw new Error(j.error || ("HTTP "+r.status));
+    const cards = j.board.length/2;
+    $("board").value = j.board;
+    $("pot").value = j.pot_bb.toFixed(2);
+    $("stack").value = j.stack_bb.toFixed(2);
+    const sizes = (j.bet_sizes||[0.75]).map(x=>x.toFixed(2)).join(",");
+    if(cards >= 5){ $("s2").value = sizes; }
+    else if(cards === 4){ $("s1").value = sizes; $("s2").value = "0.75"; }
+    else { $("s0").value = sizes; $("s1").value = "0.75"; $("s2").value = "0.75"; }
+    heroCards = j.hero_cards || [];
+    if (j.rake_pct_observed > 0) $("rake").value = (j.rake_pct_observed*100).toFixed(1);
+    $("importNote").textContent = (j.notes||[]).join("\n");
+    $("importWarn").textContent = (j.warnings||[]).join("\n");
+    $("meta").textContent = `${j.street} · ${j.oop} (OOP) vs ${j.ip} (IP) · pot ${j.pot_bb.toFixed(2)} bb · stack ${j.stack_bb.toFixed(2)} bb`;
+  }catch(e){
+    $("importErr").textContent = String(e.message||e);
+  }finally{
+    $("import").disabled = false;
+  }
+}
+
+async function startSolve(){
+  clearInterval(poll); poll = null;
+  $("err").textContent = ""; $("solve").disabled = true; $("stop").disabled = false;
+  $("meta").textContent = "";
+  nodeData = null; detailView = "combos"; classFilter = null;
+  $("detail").innerHTML = "";
+  try{
+    const body = JSON.stringify(config());
+    const r = await fetch("/api/solve", {method:"POST", headers:{"content-type":"application/json"}, body});
+    const j = await r.json();
+    if(!r.ok || j.error) throw new Error(j.error || ("HTTP "+r.status));
+    jobId = j.id;
+    poll = setInterval(tick, 350);
+    tick();
+  }catch(e){
+    $("err").textContent = String(e.message||e);
+    $("solve").disabled = false; $("stop").disabled = true;
+  }
+}
+
+async function stopSolve(){
+  if(jobId==null) return;
+  await fetch("/api/cancel?id="+jobId, {method:"POST"});
+}
+
+function drawChart(history){
+  const c = $("chart"), ctx = c.getContext("2d");
+  const w = c.width, h = c.height;
+  ctx.clearRect(0,0,w,h);
+  if(!history || history.length < 2) return;
+  const xs = history.map(p=>p.iteration), ys = history.map(p=>p.exploitability);
+  const x0 = xs[0], x1 = xs[xs.length-1], y0 = 0, y1 = Math.max(...ys)*1.1 || 1;
+  ctx.strokeStyle = "#2a3444"; ctx.lineWidth = 1;
+  for(let i=0;i<=4;i++){ const y = h - (h-8)*i/4 - 4; ctx.beginPath(); ctx.moveTo(36,y); ctx.lineTo(w-8,y); ctx.stroke(); }
+  ctx.strokeStyle = "#4cc38a"; ctx.lineWidth = 2; ctx.beginPath();
+  history.forEach((p,i)=>{
+    const x = 36 + (w-44)*( (p.iteration-x0)/Math.max(1,x1-x0) );
+    const y = h - 4 - (h-8)*(p.exploitability/y1);
+    i? ctx.lineTo(x,y) : ctx.moveTo(x,y);
+  });
+  ctx.stroke();
+  ctx.fillStyle = "#8b98a9"; ctx.font = "10px ui-monospace";
+  ctx.fillText(y1.toFixed(3), 2, 12); ctx.fillText("0", 2, h-4);
+  ctx.fillText("iteration", w-70, h-4);
+}
+
+async function tick(){
+  if(jobId==null) return;
+  try{
+    const r = await fetch("/api/job?id="+jobId);
+    const j = await r.json();
+    if(j.error) throw new Error(j.error);
+    const p = j.progress || {};
+    const pctDone = p.iterations ? Math.min(100, 100*(p.iteration||0)/p.iterations) : 0;
+    $("bar").style.width = pctDone + "%";
+    $("prog").textContent = j.status === "running"
+      ? `iter ${p.iteration||0}/${p.iterations||"?"} · expl ${(p.exploitability??0).toFixed(4)}`
+      : j.status;
+    if(j.result){
+      const s = j.result.summary;
+      $("evO").textContent = chips(s.ev_oop);
+      $("evI").textContent = chips(s.ev_ip);
+      $("expl").textContent = s.exploitability.toFixed(4);
+      $("explPct").textContent = s.exploitability_pct_pot.toFixed(2)+"%";
+      $("meta").textContent = `${s.iterations} iters · ${(s.elapsed_ms/1000).toFixed(1)}s · ${s.decisions} nodes`;
+      drawChart(s.exploitability_history);
+      renderNodes(j.result.nodes);
+      $("solve").disabled = false; $("stop").disabled = true;
+      clearInterval(poll); poll=null;
+    }
+    if(j.status === "error" || j.status === "cancelled"){
+      $("err").textContent = j.message || j.status;
+      $("solve").disabled = false; $("stop").disabled = true;
+      clearInterval(poll); poll=null;
+    }
+  }catch(e){
+    $("err").textContent = String(e.message||e);
+    clearInterval(poll); poll=null;
+    $("solve").disabled = false; $("stop").disabled = true;
+  }
+}
+
+function treeSummary(n){
+  return `<span class="treeNodeId">#${n.id}</span>
+    <span class="treeStreet">${n.street}</span>
+    ${cardSpans(n.board)}
+    <span class="pill ${n.player.toLowerCase()}">${n.player}</span>
+    <span class="mono muted" style="font-size:11px">pot ${n.pot.toFixed(1)}</span>`;
+}
+
+function treeBar(n){
+  const acts = n.actions || [];
+  const bars = acts.map(a=>`<b style="width:${(a.frequency*100).toFixed(2)}%;background:${actionColor(a.label)}" title="${a.label} ${(a.frequency*100).toFixed(1)}%"></b>`).join("");
+  return `<span class="freq treeBet" style="width:110px;min-width:110px" title="${acts.map(a=>a.label+" "+(a.frequency*100).toFixed(1)+"%").join(" · ")}">${bars}</span>`;
+}
+
+function renderTree(){
+  const wrap = $("treeWrap");
+  if(!nodes.length){
+    wrap.innerHTML = `<div class="treeEmpty">No tree yet — run a solve.</div>`;
+    return;
+  }
+  const byId = new Map(nodes.map(n=>[n.id, n]));
+  const root = byId.get(0) || nodes[0];
+  const edgeMap = new Map();
+  nodes.forEach(n=>{
+    const m = new Map();
+    (n.edges || []).forEach(e=>{
+      if(!m.has(e.action_index)) m.set(e.action_index, []);
+      m.get(e.action_index).push(e);
+    });
+    edgeMap.set(n.id, m);
+  });
+
+  const rows = [];
+  const nodeRow = (n, depth, incoming)=>{
+    const hasActions = (n.actions || []).length > 0;
+    const open = treeOpenNodes.has(n.id);
+    const pad = 6 + depth * 14;
+    rows.push(`<div class="treeRow${nodeData && nodeData.id === n.id ? " sel" : ""}" data-node="${n.id}" style="padding-left:${pad}px">
+      <button type="button" class="treeToggle${hasActions ? "" : " leaf"}" data-toggle-node="${n.id}" ${hasActions ? "" : "disabled"}>${hasActions ? (open ? "▾" : "▸") : "·"}</button>
+      ${incoming || ""}
+      ${treeSummary(n)}
+      ${treeBar(n)}
+    </div>`);
+    if(!open) return;
+    const m = edgeMap.get(n.id) || new Map();
+    (n.actions || []).forEach((a, ai)=>{
+      const targets = m.get(ai) || [];
+      const key = n.id + ":" + ai;
+      const aOpen = treeOpenActions.has(key);
+      const padA = 6 + (depth + 1) * 14;
+      const hasTargets = targets.length > 0;
+      const chanceGroup = hasTargets && targets.every(t=>t.chance);
+      rows.push(`<div class="treeRow treeAction" data-action-key="${key}" style="padding-left:${padA}px">
+        <button type="button" class="treeToggle${hasTargets ? "" : " leaf"}" data-toggle-action="${key}" ${hasTargets ? "" : "disabled"}>${hasTargets ? (aOpen ? "▾" : "▸") : "·"}</button>
+        <span class="treeLabel mono">${a.label}</span>
+        <span class="treePct">${(a.frequency*100).toFixed(1)}%</span>
+        ${hasTargets ? `<span class="muted" style="font-size:10px">${chanceGroup && targets.length > 1 ? targets.length + " cards" : ""}</span>` : `<span class="treeEnd">end</span>`}
+      </div>`);
+      if(aOpen){
+        targets.forEach(e=>{
+          const child = byId.get(e.target);
+          if(!child) return;
+          const incoming = e.chance
+            ? `<span class="treeEdgeTag">${e.chance}</span><span class="muted">→</span>`
+            : `<span class="muted">→</span>`;
+          nodeRow(child, depth + 2, incoming);
+        });
+      }
+    });
+  };
+  nodeRow(root, 0, null);
+  wrap.innerHTML = rows.join("");
+
+  wrap.querySelectorAll("[data-toggle-node]").forEach(b=>{
+    b.onclick = (ev)=>{
+      ev.stopPropagation();
+      const id = Number(b.dataset.toggleNode);
+      if(treeOpenNodes.has(id)) treeOpenNodes.delete(id); else treeOpenNodes.add(id);
+      renderTree();
+    };
+  });
+  wrap.querySelectorAll(".treeRow[data-node]").forEach(r=>{
+    r.onclick = ()=> selectNode(Number(r.dataset.node));
+  });
+  wrap.querySelectorAll(".treeRow.treeAction").forEach(r=>{
+    const key = r.dataset.actionKey;
+    const btn = r.querySelector("[data-toggle-action]");
+    r.onclick = ()=>{
+      if(!btn || btn.disabled) return;
+      if(treeOpenActions.has(key)) treeOpenActions.delete(key); else treeOpenActions.add(key);
+      renderTree();
+    };
+  });
+  wrap.querySelectorAll("[data-toggle-action]").forEach(b=>{
+    b.onclick = (ev)=>{
+      ev.stopPropagation();
+      if(b.disabled) return;
+      const key = b.dataset.toggleAction;
+      if(treeOpenActions.has(key)) treeOpenActions.delete(key); else treeOpenActions.add(key);
+      renderTree();
+    };
+  });
+}
+
+function updateTreeView(){
+  const isTree = treeView === "tree";
+  $("nodesWrap").style.display = isTree ? "none" : "";
+  $("treeWrap").style.display = isTree ? "" : "none";
+  document.querySelectorAll("#treeViewToggle button").forEach(b=>{
+    b.classList.toggle("on", b.dataset.tv === treeView);
+  });
+  if(isTree) renderTree();
+}
+
+function renderNodes(list){
+  nodes = list || [];
+  $("nodeCount").textContent = nodes.length + " decision nodes";
+  treeOpenNodes = new Set(nodes.length ? [nodes[0].id] : []);
+  treeOpenActions = new Set();
+  const tbody = $("nodes"); tbody.innerHTML = "";
+  nodes.forEach(n=>{
+    const tr = document.createElement("tr");
+    tr.className = "node"; tr.dataset.node = n.id;
+    const freqs = n.actions.map(a=>`<b style="width:${(a.frequency*100).toFixed(2)}%;background:${actionColor(a.label)}" title="${a.label} ${pct(a.frequency)}"></b>`).join("");
+    tr.innerHTML = `<td class="mono muted">${n.id}</td>
+      <td style="text-transform:capitalize">${n.street}</td>
+      <td>${cardSpans(n.board)}</td>
+      <td><span class="pill ${n.player.toLowerCase()}">${n.player}</span></td>
+      <td class="mono">${n.pot.toFixed(1)}</td>
+      <td><div class="freq" title="${n.actions.map(a=>a.label+" "+(a.frequency*100).toFixed(1)+"%").join(" · ")}">${freqs}</div></td>`;
+    tr.onclick = ()=>selectNode(n.id);
+    tbody.appendChild(tr);
+  });
+  renderTree();
+}
+
+let nodeData = null;
+let detailView = "combos";
+let classFilter = null;
+
+
+function handClass(hand){
+  const c1 = String(hand).slice(0,2), c2 = String(hand).slice(2,4);
+  const r1 = rankIdx(c1[0]), r2 = rankIdx(c2[0]);
+  if(r1 < 0 || r2 < 0) return String(hand);
+  const hi = Math.max(r1, r2), lo = Math.min(r1, r2);
+  if(hi === lo) return rankChar(hi) + rankChar(lo);
+  const suited = (c1[1]||"").toLowerCase() === (c2[1]||"").toLowerCase();
+  return rankChar(hi) + rankChar(lo) + (suited ? "s" : "o");
+}
+
+function aggregateByClass(hands, na){
+  const map = new Map();
+  hands.forEach(h=>{
+    const cls = handClass(h.hand);
+    if(!map.has(cls)) map.set(cls, {combos:0, weight:0, freq:new Array(na).fill(0)});
+    const a = map.get(cls);
+    a.combos += 1;
+    a.weight += h.weight;
+    for(let i=0; i<na; i++) a.freq[i] += (h.freq[i] || 0) * h.weight;
+  });
+  map.forEach(a=>{
+    if(a.weight > 0) for(let i=0; i<a.freq.length; i++) a.freq[i] /= a.weight;
+  });
+  return map;
+}
+
+function strategyGradient(freq, actions){
+  const parts = [];
+  let acc = 0;
+  freq.forEach((f, i)=>{
+    const start = acc;
+    acc += f;
+    const act = actions[i];
+    const label = typeof act === "string" ? act : (act && act.label) || "";
+    const color = actionColor(label);
+    if(f > 0.0005) parts.push(`${color} ${(start*100).toFixed(2)}% ${(acc*100).toFixed(2)}%`);
+  });
+  return parts.length ? `linear-gradient(90deg, ${parts.join(", ")})` : "";
+}
+
+function renderDetail(){
+  const d = $("detail");
+  if(!nodeData){ d.innerHTML = ""; return; }
+  const {id, actions, hands, node} = nodeData;
+  const na = actions.length;
+  const heroCls = heroCards.length === 2 ? handClass(heroCards.join("")) : null;
+  const filtered = classFilter ? hands.filter(h=>handClass(h.hand) === classFilter) : hands;
+  const shown = filtered.slice(0, 400);
+
+  let body;
+  if(detailView === "classes"){
+    const agg = aggregateByClass(hands, na);
+    const cells = [];
+    RANK_ORDER.forEach((rRow, i)=>{
+      RANK_ORDER.forEach((rCol, j)=>{
+        let cls;
+        if(i === j) cls = rRow + rRow;
+        else if(i < j) cls = rRow + rCol + "s";
+        else cls = rCol + rRow + "o";
+        const a = agg.get(cls);
+        const hero = cls === heroCls;
+        if(!a || a.weight <= 0){
+          cells.push(`<div class="stratCell dim${hero ? " hero" : ""}" title="${cls} · not in range">${cls}</div>`);
+          return;
+        }
+        const tip = `${cls} · ${a.combos} combos · weight ${(a.weight*100).toFixed(1)}%\n`
+          + actions.map((act, k)=>`${act}: ${(a.freq[k]*100).toFixed(1)}%`).join("\n");
+        cells.push(`<button type="button" class="stratCell${hero ? " hero" : ""}" data-class="${cls}"
+          style="background:${strategyGradient(a.freq, actions)}" title="${tip}">${cls}</button>`);
+      });
+    });
+    const legend = actions.map((act, i)=>
+      `<span><i style="background:${actionColor(act)}"></i><b>${act}</b></span>`
+    ).join("");
+    body = `<div class="matrix" style="margin-top:12px">${cells.join("")}</div>
+      <div class="legend">${legend}<span class="muted">Weighted by range combos · click a class to filter combos</span></div>`;
+  } else {
+    const rows = shown.map(h=>{
+      const bars = h.freq.map((f,i)=>`<b style="width:${(f*100).toFixed(2)}%;background:${actionColor(actions[i])}" title="${actions[i]} ${(f*100).toFixed(1)}%"></b>`).join("");
+      const hero = heroCards.length === 2 && (h.hand === heroCards[0] + heroCards[1] || h.hand === heroCards[1] + heroCards[0]);
+      return `<tr class="${hero ? "heroRow" : ""}"><td class="mono">${h.hand}${hero ? '<span class="badge">hero</span>' : ""}</td><td class="mono muted">${(h.weight*100).toFixed(2)}%</td><td><div class="freq">${bars}</div></td>
+        <td class="mono muted">${h.freq.map(f=>(f*100).toFixed(1)).join(" / ")}</td></tr>`;
+    }).join("");
+    body = hands.length === 0
+      ? `<div class="muted" style="margin-top:12px">No hands for this node.</div>`
+      : `<div class="nodes" style="max-height:340px;margin-top:12px"><table>
+        <thead><tr><th>Hand</th><th>Weight</th><th>Frequency</th><th class="mono">${actions.join(" / ")}</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+        ${filtered.length > shown.length ? `<div class="hint">Showing first ${shown.length} of ${filtered.length} combos</div>` : ""}`;
+  }
+
+  d.innerHTML = `<div class="detailHead">
+      <h2 style="margin:0">Hand detail · node ${id} · ${node ? node.street : ""} ${node ? node.board : ""}</h2>
+      <div class="segmented">
+        <button type="button" data-view="combos" class="${detailView === "combos" ? "on" : ""}">Combos</button>
+        <button type="button" data-view="classes" class="${detailView === "classes" ? "on" : ""}">Classes</button>
+      </div>
+    </div>
+    <div class="detailMeta">
+      <span class="muted mono">${actions.join(" · ")}</span>
+      <span class="muted mono">${hands.length} combos</span>
+      ${classFilter ? `<span class="chip">${classFilter}<button type="button" data-clear-filter title="Clear filter">×</button></span>` : ""}
+    </div>
+    ${body}`;
+
+  d.querySelectorAll(".segmented button").forEach(b=>{
+    b.onclick = ()=>{ detailView = b.dataset.view; if(detailView === "classes") classFilter = null; renderDetail(); };
+  });
+  const clear = d.querySelector("[data-clear-filter]");
+  if(clear) clear.onclick = ()=>{ classFilter = null; renderDetail(); };
+  d.querySelectorAll(".stratCell[data-class]").forEach(cell=>{
+    cell.onclick = ()=>{ classFilter = cell.dataset.class; detailView = "combos"; renderDetail(); };
+  });
+}
+
+async function selectNode(id){
+  document.querySelectorAll("tr.node").forEach(el=>el.classList.toggle("sel", el.dataset.node == String(id)));
+  document.querySelectorAll(".treeRow[data-node]").forEach(el=>el.classList.toggle("sel", el.dataset.node == String(id)));
+  const n = nodes.find(x=>x.id===id);
+  const d = $("detail");
+  d.innerHTML = `<div class="muted">loading hands…</div>`;
+  try{
+    const r = await fetch(`/api/node?id=${jobId}&node=${id}`);
+    const j = await r.json();
+    if(j.error) throw new Error(j.error);
+    nodeData = {id, actions: j.actions || [], hands: j.hands || [], node: n};
+    detailView = "combos";
+    classFilter = null;
+    renderDetail();
+  }catch(e){
+    nodeData = null;
+    d.innerHTML = `<div class="err">${e.message}</div>`;
+  }
+}
+
+$("solve").onclick = startSolve;
+$("stop").onclick = stopSolve;
+$("import").onclick = importHand;
+
+$("boardPick").onclick = openBoardPicker;
+$("deckOk").onclick = confirmBoardPicker;
+$("deckCancel").onclick = closeBoardPicker;
+$("deckClear").onclick = ()=>{ boardPick = []; renderBoardPicker(); };
+$("deckOverlay").addEventListener("mousedown", (e)=>{
+  if(e.target === $("deckOverlay")) closeBoardPicker();
+});
+
+$("oopPick").onclick = ()=> openRangePicker("oop");
+$("ipPick").onclick = ()=> openRangePicker("ip");
+$("rangeOk").onclick = confirmRangePicker;
+$("rangeCancel").onclick = closeRangePicker;
+$("rangeClear").onclick = ()=>{ rangeSel = emptyRangeSel(); buildRangeGrid(); updateRangeStats(); };
+$("rangeAll").onclick = ()=>{ rangeSel = emptyRangeSel(); fillRangeSel(rangeSel); buildRangeGrid(); updateRangeStats(); };
+$("rangeOverlay").addEventListener("mousedown", (e)=>{
+  if(e.target === $("rangeOverlay")) closeRangePicker();
+});
+document.addEventListener("pointerup", ()=>{ rangePaint = null; });
+document.addEventListener("keydown", (e)=>{
+  if(e.key !== "Escape") return;
+  if($("deckOverlay").classList.contains("open")){ e.preventDefault(); closeBoardPicker(); }
+  else if($("rangeOverlay").classList.contains("open")){ e.preventDefault(); closeRangePicker(); }
+  else if($("glossaryOverlay").classList.contains("open")){ e.preventDefault(); closeGlossary(); }
+});
+document.querySelectorAll("#treeViewToggle button").forEach(b=>{
+  b.onclick = ()=>{ treeView = b.dataset.tv; updateTreeView(); };
+});
+
+$("glossaryOpen").onclick = ()=> openGlossary();
+$("glossaryClose").onclick = closeGlossary;
+$("glossarySearch").oninput = ()=> renderGlossary($("glossarySearch").value);
+$("glossaryOverlay").addEventListener("mousedown", (e)=>{
+  if(e.target === $("glossaryOverlay")) closeGlossary();
+});
+installHelp();
+window.addEventListener("scroll", ()=>{
+  const tip = $("helpTip");
+  if(tip) tip.hidden = true;
+}, true);
+window.addEventListener("resize", ()=>{
+  const tip = $("helpTip");
+  if(tip) tip.hidden = true;
+});
+$("shutdown").onclick = async () => {
+  if (!confirm("Close the local server?")) return;
+  try { await fetch("/api/shutdown", {method:"POST"}); } catch(e) {}
+  document.body.innerHTML = '<div style="padding:40px;font:14px -apple-system">Server closed. You can close this window.</div>';
+};
+health();
+</script>
+</body>
+</html>
