@@ -25,7 +25,10 @@ jobs:
           rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
       - name: Install DMG dependencies
-        run: python3 -m pip install --user pillow
+        run: |
+          python3 -m venv "$RUNNER_TEMP/dmg-venv"
+          "$RUNNER_TEMP/dmg-venv/bin/pip" install pillow
+          echo "$RUNNER_TEMP/dmg-venv/bin" >> "$GITHUB_PATH"
 
       - name: Build universal DMG
         run: ./scripts/package_dmg.sh
